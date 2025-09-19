@@ -20,6 +20,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.teleavatar_policy as teleavatar_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -346,6 +347,59 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
         model_transforms = ModelTransformFactory()(model_config)
 
         # We return all data transforms for training and inference. No need to change anything here.
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotTeleavatarDataConfig(DataConfigFactory):
+    """
+    Config for training on Teleavatar dual-arm robot dataset.
+
+    This config handles the 48-dimensional state (joint positions, velocities, efforts)
+    and 3 camera feeds (left_color, right_color, head_color).
+    """
+    use_delta_joint_actions: bool = True
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        # Repack transform to match dataset keys to inference keys
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "observation/images/left_color": "observation.images.left_color",
+                        "observation/images/right_color": "observation.images.right_color",
+                        "observation/images/head_camera": "observation.images.head_camera",  # Map head_camera correctly
+                        "observation/state": "observation.state",
+                        "action": "action",  # Keep action as action
+                    }
+                )
+            ]
+        )
+
+        # Data transforms for teleavatar policy
+        data_transforms = _transforms.Group(
+            inputs=[teleavatar_policy.TeleavatarInputs(model_type=model_config.model_type)],
+            outputs=[teleavatar_policy.TeleavatarOutputs()],
+        )
+
+        # Apply delta actions if requested (for joint velocities, not gripper efforts)
+        if self.use_delta_joint_actions:
+            # Apply delta to first 14 actions (joint velocities), leave last 2 (gripper efforts) absolute
+            delta_action_mask = _transforms.make_bool_mask(14, -2)
+            data_transforms = data_transforms.push(
+                inputs=[_transforms.DeltaActions(delta_action_mask)],
+                outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+            )
+
+        # Model transforms
+        model_transforms = ModelTransformFactory()(model_config)
+
         return dataclasses.replace(
             self.create_base_config(assets_dirs, model_config),
             repack_transforms=repack_transform,
@@ -751,6 +805,37 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         pytorch_weight_path="/path/to/your/pytorch_weight_path",
         num_train_steps=30_000,
+    ),
+    #
+    # Fine-tuning Teleavatar configs.
+    #
+    TrainConfig(
+        name="pi05_teleavatar",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=16,  # 14 joint velocities + 2 gripper efforts
+            action_horizon=10,
+            discrete_state_input=False
+        ),
+        data=LeRobotTeleavatarDataConfig(
+            repo_id="lerobot/pick_and_place",  # Your local dataset name
+            base_config=DataConfig(
+                prompt_from_task=False,  # No prompts in teleavatar dataset
+                action_sequence_keys=("action",)  # Use 'action' not 'actions'
+            ),
+            use_delta_joint_actions=True,
+        ),
+        batch_size=128,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=5_000,
+            peak_lr=5e-5,
+            decay_steps=500_000,
+            decay_lr=5e-5,
+        ),
+        optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
+        ema_decay=0.999,
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        num_train_steps=20_000,
     ),
     #
     # Fine-tuning Aloha configs.
