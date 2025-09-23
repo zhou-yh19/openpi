@@ -116,10 +116,10 @@ class MultiVideoRosBag2LeRobotConverter:
             return (480, 848, 3)  # Stereo cameras
 
     def setup_features(self):
-        """Setup LeRobot dataset features with 62-dim data + video features."""
+        """Setup LeRobot dataset features with 48-dim data + video features."""
         features = {}
 
-        # Complete 62-dimensional feature names
+        # Complete 48-dimensional feature names
         feature_names = [
             # Joint positions (16)
             "left_joint1_position", "left_joint2_position", "left_joint3_position", "left_joint4_position",
@@ -135,25 +135,20 @@ class MultiVideoRosBag2LeRobotConverter:
             "left_joint1_effort", "left_joint2_effort", "left_joint3_effort", "left_joint4_effort",
             "left_joint5_effort", "left_joint6_effort", "left_joint7_effort", "left_gripper_effort",
             "right_joint1_effort", "right_joint2_effort", "right_joint3_effort", "right_joint4_effort",
-            "right_joint5_effort", "right_joint6_effort", "right_joint7_effort", "right_gripper_effort",
-            # End effector poses (14)
-            "left_ee_position_x", "left_ee_position_y", "left_ee_position_z",
-            "left_ee_orientation_x", "left_ee_orientation_y", "left_ee_orientation_z", "left_ee_orientation_w",
-            "right_ee_position_x", "right_ee_position_y", "right_ee_position_z",
-            "right_ee_orientation_x", "right_ee_orientation_y", "right_ee_orientation_z", "right_ee_orientation_w"
+            "right_joint5_effort", "right_joint6_effort", "right_joint7_effort", "right_gripper_effort"
         ]
 
-        # ACTION features (62-dim)
+        # ACTION features (48-dim)
         features["action"] = {
             "dtype": "float32",
-            "shape": (62,),
+            "shape": (48,),
             "names": {"motors": feature_names}
         }
 
-        # OBSERVATION features (62-dim)
+        # OBSERVATION features (48-dim)
         features["observation.state"] = {
             "dtype": "float32",
-            "shape": (62,),
+            "shape": (48,),
             "names": {"motors": feature_names}
         }
 
@@ -213,7 +208,6 @@ class MultiVideoRosBag2LeRobotConverter:
 
         # Topics we care about
         joint_topics = [
-            '/left_target_ee_pose', '/right_target_ee_pose',
             '/left_arm/joint_cmd', '/right_arm/joint_cmd',
             '/left_gripper/joint_cmd', '/right_gripper/joint_cmd',
             '/left_arm/joint_states', '/right_arm/joint_states',
@@ -395,13 +389,6 @@ class MultiVideoRosBag2LeRobotConverter:
 
         return None
 
-    def extract_pose_data(self, msg: Pose):
-        """Extract pose data as numpy array."""
-        return np.array([
-            msg.position.x, msg.position.y, msg.position.z,
-            msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w
-        ], dtype=np.float32)
-
     def extract_joint_data(self, msg: JointState):
         """Extract joint state data."""
         positions = list(msg.position) if msg.position else []
@@ -426,12 +413,12 @@ class MultiVideoRosBag2LeRobotConverter:
         return np.array([pos, vel, effort], dtype=np.float32)
 
     def create_frame_at_time(self, target_time: float, all_messages: dict, video_streams: dict, is_last_frame: bool = False):
-        """Create a frame with both 62-dim data and video at the specified time."""
+        """Create a frame with both 48-dim data and video at the specified time."""
         frame_data = {}
 
-        # Initialize 62-dimensional arrays
-        action_data = np.zeros(62, dtype=np.float32)
-        state_data = np.zeros(62, dtype=np.float32)
+        # Initialize 48-dimensional arrays
+        action_data = np.zeros(48, dtype=np.float32)
+        state_data = np.zeros(48, dtype=np.float32)
 
         # Extract action data (joint commands and target poses)
         # Left arm joint commands
@@ -465,17 +452,6 @@ class MultiVideoRosBag2LeRobotConverter:
             action_data[15] = gripper_data[0]         # position
             action_data[31] = gripper_data[1]         # velocity
             action_data[47] = gripper_data[2]         # effort
-
-        # Target end-effector poses for ACTION
-        left_pose_msg = self.find_closest_message(target_time, all_messages.get('/left_target_ee_pose', []))
-        if left_pose_msg:
-            pose_data = self.extract_pose_data(left_pose_msg)
-            action_data[48:55] = pose_data
-
-        right_pose_msg = self.find_closest_message(target_time, all_messages.get('/right_target_ee_pose', []))
-        if right_pose_msg:
-            pose_data = self.extract_pose_data(right_pose_msg)
-            action_data[55:62] = pose_data
 
         frame_data["action"] = action_data
 
@@ -511,9 +487,6 @@ class MultiVideoRosBag2LeRobotConverter:
             state_data[15] = gripper_data[0]
             state_data[31] = gripper_data[1]
             state_data[47] = gripper_data[2]
-
-        # Keep the last 14 dimensions (48-61) as zeros for now
-        # This matches the original design where only 48 dimensions are used
 
         frame_data["observation.state"] = state_data
 
