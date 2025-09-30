@@ -845,7 +845,7 @@ _CONFIGS = [
         model=pi0_config.Pi0Config(
             paligemma_variant="gemma_2b_lora",
             action_expert_variant="gemma_300m_lora",
-            action_dim=16  # Teleavatar uses 16-dim actions
+            action_dim=32  # Keep 32 to match pi0_base pretrained weights
         ),
         data=LeRobotTeleavatarDataConfig(
             repo_id="lerobot/left_dataset",  # Your local dataset name
@@ -863,7 +863,7 @@ _CONFIGS = [
         # for the given model config for LoRA finetuning. Just make sure it matches the model config
         # you chose above.
         freeze_filter=pi0_config.Pi0Config(
-            action_dim=16, paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+            action_dim=32, paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
         ).get_freeze_filter(),
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
