@@ -388,10 +388,12 @@ class LeRobotTeleavatarDataConfig(DataConfigFactory):
             outputs=[teleavatar_policy.TeleavatarOutputs()],
         )
 
-        # Apply delta actions if requested (for joint velocities, not gripper efforts)
+        # Apply delta actions if requested (for joint positions/velocities, not gripper efforts)
+        # Inputs are 16 dimensions: 7 left arm joints, 1 left gripper, 7 right arm joints, 1 right gripper
         if self.use_delta_joint_actions:
-            # Apply delta to first 14 actions (joint velocities), leave last 2 (gripper efforts) absolute
-            delta_action_mask = _transforms.make_bool_mask(14, -2)
+            # Apply delta left arm joints (first 7 dims), leave left gripper (8th dim) absolute
+            # Apply delta right arm joints (dims 9-15), leave right gripper (16th dim) absolute
+            delta_action_mask = _transforms.make_bool_mask(7, -1, 7, -1)
             data_transforms = data_transforms.push(
                 inputs=[_transforms.DeltaActions(delta_action_mask)],
                 outputs=[_transforms.AbsoluteActions(delta_action_mask)],
@@ -813,19 +815,19 @@ _CONFIGS = [
         name="pi05_teleavatar",
         model=pi0_config.Pi0Config(
             pi05=True,
-            action_dim=16,  # 14 joint velocities + 2 gripper efforts
             action_horizon=10,
-            discrete_state_input=False
+            discrete_state_input=False,
+            action_dim=16  # Teleavatar uses 16-dim actions
         ),
         data=LeRobotTeleavatarDataConfig(
-            repo_id="lerobot/pick_and_place",  # Your local dataset name
+            repo_id="lerobot/left_dataset",  # Your local dataset name
             base_config=DataConfig(
                 prompt_from_task=False,  # No prompts in teleavatar dataset
                 action_sequence_keys=("action",)  # Use 'action' not 'actions'
             ),
             use_delta_joint_actions=True,
         ),
-        batch_size=128,
+        batch_size=4,
         lr_schedule=_optimizer.CosineDecaySchedule(
             warmup_steps=5_000,
             peak_lr=5e-5,
@@ -836,6 +838,35 @@ _CONFIGS = [
         ema_decay=0.999,
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         num_train_steps=20_000,
+    ),
+    TrainConfig(
+        name="pi0_teleavatar_low_mem_finetune",
+        # Here is an example of loading a pi0 model for LoRA fine-tuning.
+        model=pi0_config.Pi0Config(
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+            action_dim=16  # Teleavatar uses 16-dim actions
+        ),
+        data=LeRobotTeleavatarDataConfig(
+            repo_id="lerobot/left_dataset",  # Your local dataset name
+            base_config=DataConfig(
+                prompt_from_task=False,  # No prompts in teleavatar dataset
+                action_sequence_keys=("action",)  # Use 'action' not 'actions'
+            ),
+            use_delta_joint_actions=False,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=16,
+        num_train_steps=30_000,
+        # The freeze filter defines which parameters should be frozen during training.
+        # We have a convenience function in the model config that returns the default freeze filter
+        # for the given model config for LoRA finetuning. Just make sure it matches the model config
+        # you chose above.
+        freeze_filter=pi0_config.Pi0Config(
+            action_dim=16, paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+        ).get_freeze_filter(),
+        # Turn off EMA for LoRA finetuning.
+        ema_decay=None,
     ),
     #
     # Fine-tuning Aloha configs.

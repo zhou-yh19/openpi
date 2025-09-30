@@ -10,11 +10,11 @@ from openpi.models import model as _model
 def make_teleavatar_example() -> dict:
     """Creates a random input example for the Teleavatar policy."""
     return {
-        "observation/state": np.random.rand(62),  # Full 62-dim from dataset
+        "observation/state": np.random.rand(48),
         "observation/images/left_color": np.random.randint(256, size=(480, 848, 3), dtype=np.uint8),
         "observation/images/right_color": np.random.randint(256, size=(480, 848, 3), dtype=np.uint8),
         "observation/images/head_camera": np.random.randint(256, size=(1080, 1920, 3), dtype=np.uint8),
-        "actions": np.random.rand(62),  # Full 62-dim from dataset
+        "actions": np.random.rand(48),
         "prompt": "pick a cube and place it on another cube",
     }
 
@@ -35,16 +35,10 @@ class TeleavatarInputs(transforms.DataTransformFn):
     This class is used to convert inputs to the model to the expected format. It is used for both training and inference.
 
     For the teleavatar robot, this extracts:
-    - State: 48 dimensions from the full 62-dim state (positions + velocities + efforts, no EE poses)
+    - State: 48 dimensions  (positions and velocities of arms and grippers)
     - Images: 3 camera feeds (left_color, right_color, head_color)
-    - Actions: 16 dimensions from the full 62-dim actions (joint velocities + gripper efforts)
-
-    For your own dataset, you can copy this class and modify the keys based on the comments below to pipe
-    the correct elements of your dataset into the model.
+    - Actions: 16 dimensions (joint positions for joints 1-7 of both arms, and gripper efforts for both grippers)
     """
-
-    # Determines which model will be used.
-    # Do not change this for your own dataset.
     model_type: _model.ModelType
 
     def __call__(self, data: dict) -> dict:
@@ -60,15 +54,18 @@ class TeleavatarInputs(transforms.DataTransformFn):
             import cv2
             head_color = cv2.resize(head_color, (848, 480))
 
-        # Extract only the first 48 dimensions from the full 62-dim state
-        # (positions + velocities + efforts, excluding end-effector poses)
-        state_48d = data["observation/state"][:48]
+        state_16d = np.concatenate([
+            data["observation/state"][0:7],   # Left arm joint positions (7 values)
+            data["observation/state"][39:40],  # Left gripper effort (1 value)
+            data["observation/state"][8:15],  # Right arm joint positions (7 values)
+            data["observation/state"][47:48],  # Right gripper effort (1 value)
+        ], axis=0)  # Concatenate along the feature dimension
 
         # Create inputs dict. Do not change the keys in the dict below.
         # Pi0 models support three image inputs: one third-person view and two wrist views.
         # Map teleavatar cameras to the expected model inputs.
         inputs = {
-            "state": state_48d,
+            "state": state_16d,
             "image": {
                 "base_0_rgb": left_color,       # Left stereo camera as base view
                 "left_wrist_0_rgb": right_color,  # Right stereo camera as left wrist
@@ -77,7 +74,6 @@ class TeleavatarInputs(transforms.DataTransformFn):
             "image_mask": {
                 "base_0_rgb": np.True_,
                 "left_wrist_0_rgb": np.True_,
-                # We only mask padding images for pi0 model, not pi0-FAST. Do not change this for your own dataset.
                 "right_wrist_0_rgb": np.True_ if self.model_type == _model.ModelType.PI0_FAST else np.True_,
             },
         }
@@ -86,19 +82,19 @@ class TeleavatarInputs(transforms.DataTransformFn):
         # Actions are only available during training.
         if "action" in data:
             # Extract the 16 actions we want to train on:
-            # - Left arm joint velocities (joints 1-7): indices 16-22
-            # - Right arm joint velocities (joints 1-7): indices 24-30
+            # - Left arm joint positions (joints 1-7): indices 0-6
+            # - Right arm joint positions (joints 1-7): indices 8-14
             # - Left gripper effort: index 39
             # - Right gripper effort: index 47
-            # Extract the 16 actions we want from the 62-dim action space
-            # data["action"] has shape [action_horizon, 62]
-            action_data = data["action"]  # Shape: [action_horizon, 62]
+            # Extract the 16 actions we want from the full action array.
+            # data["action"] has shape [action_horizon, 48]
+            action_data = data["action"]
 
             # Extract specific indices for each timestep
             selected_actions = np.concatenate([
-                action_data[:, 16:23],  # Left arm joint velocities (7 values)
-                action_data[:, 24:31],  # Right arm joint velocities (7 values)
+                action_data[:, 0:7],   # Left arm joint positions (7 values)
                 action_data[:, 39:40],  # Left gripper effort (1 value)
+                action_data[:, 8:15],  # Right arm joint positions (7 values)
                 action_data[:, 47:48],  # Right gripper effort (1 value)
             ], axis=1)  # Concatenate along action dimension, not time dimension
 
@@ -109,7 +105,7 @@ class TeleavatarInputs(transforms.DataTransformFn):
         if "prompt" in data:
             inputs["prompt"] = data["prompt"]
         else:
-            inputs["prompt"] = "pick a cube and place it on another cube"  # Default task for teleavatar
+            inputs["prompt"] = "pick a toy and put it in the basket using left gripper"  # Default task for teleavatar
 
         return inputs
 
@@ -121,7 +117,7 @@ class TeleavatarOutputs(transforms.DataTransformFn):
     used for inference only.
 
     For teleavatar, we return 16 actions:
-    - Joint velocities for joints 1-7 for both arms (14 values)
+    - Joint positions for joints 1-7 for both arms (14 values)
     - Joint efforts for left and right grippers (2 values)
 
     For your own dataset, you can copy this class and modify the action dimension based on the comments below.
