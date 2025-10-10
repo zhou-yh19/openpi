@@ -35,9 +35,9 @@ class TeleavatarInputs(transforms.DataTransformFn):
     This class is used to convert inputs to the model to the expected format. It is used for both training and inference.
 
     For the teleavatar robot, this extracts:
-    - State: 48 dimensions  (positions and velocities of arms and grippers)
+    - State: 16 dimensions (joint positions: 7 left arm + 1 left gripper + 7 right arm + 1 right gripper)
     - Images: 3 camera feeds (left_color, right_color, head_color)
-    - Actions: 16 dimensions (joint positions for joints 1-7 of both arms, and gripper efforts for both grippers)
+    - Actions: 16 dimensions (joint positions for joints 1-7 of both arms, and gripper positions for both grippers)
     """
     model_type: _model.ModelType
 
