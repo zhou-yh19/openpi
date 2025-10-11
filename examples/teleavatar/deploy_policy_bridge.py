@@ -212,17 +212,17 @@ class TeleavatarPolicyBridge(Node):
             left_arm = self.latest_joint_states['left_arm']
             state_16d[0:7] = self._extract_joint_data(left_arm, 7, 'position')
 
-            # Extract left gripper position (1 joint)
+            # Extract left gripper effort (1 joint)
             left_gripper = self.latest_joint_states['left_gripper']
-            state_16d[7] = self._extract_joint_data(left_gripper, 1, 'position')[0]
+            state_16d[7] = self._extract_joint_data(left_gripper, 1, 'effort')[0]
 
             # Extract right arm positions (7 joints)
             right_arm = self.latest_joint_states['right_arm']
             state_16d[8:15] = self._extract_joint_data(right_arm, 7, 'position')
 
-            # Extract right gripper position (1 joint)
+            # Extract right gripper effort (1 joint)
             right_gripper = self.latest_joint_states['right_gripper']
-            state_16d[15] = self._extract_joint_data(right_gripper, 1, 'position')[0]
+            state_16d[15] = self._extract_joint_data(right_gripper, 1, 'effort')[0]
 
             # Build observation dict with flat keys (using slashes, not nested dicts)
             obs = {
@@ -330,9 +330,9 @@ class TeleavatarPolicyBridge(Node):
 
         Actions format (16-dim):
         - [0:7]: Left arm joint positions
-        - [7:8]: Left gripper position
+        - [7:8]: Left gripper effort
         - [8:15]: Right arm joint positions
-        - [15:16]: Right gripper position
+        - [15:16]: Right gripper effort
         """
         timestamp = self.get_clock().now().to_msg()
 
@@ -345,7 +345,7 @@ class TeleavatarPolicyBridge(Node):
         # Left gripper
         left_gripper_msg = JointState()
         left_gripper_msg.header.stamp = timestamp
-        left_gripper_msg.position = [float(actions[7])]
+        left_gripper_msg.effort = [float(actions[7])]
         self.action_publishers['left_gripper'].publish(left_gripper_msg)
 
         # Right arm
@@ -357,7 +357,7 @@ class TeleavatarPolicyBridge(Node):
         # Right gripper
         right_gripper_msg = JointState()
         right_gripper_msg.header.stamp = timestamp
-        right_gripper_msg.position = [float(actions[15])]
+        right_gripper_msg.effort = [float(actions[15])]
         self.action_publishers['right_gripper'].publish(right_gripper_msg)
 
     def cleanup(self):
