@@ -32,19 +32,28 @@ def _parse_image(image) -> np.ndarray:
 @dataclasses.dataclass(frozen=True)
 class TeleavatarInputs(transforms.DataTransformFn):
     """
-    This class is used to convert inputs to the model to the expected format. It is used for both training and inference.
+    Converts inputs to the model format for Teleavatar robot.
 
-    For the teleavatar robot, this extracts:
-    - State: 16 dimensions (joint positions: 7 left arm + 1 left gripper + 7 right arm + 1 right gripper)
-    - Images: 3 camera feeds (left_color, right_color, head_color)
-    - Actions: 16 dimensions (joint positions for joints 1-7 of both arms, and gripper positions for both grippers)
+    **Input format (48-dim observation/state from LeRobot dataset):**
+    Layout: [positions(16), velocities(16), efforts(16)]
+    - Indices 0-15: Joint positions (7 left arm, 1 left gripper, 7 right arm, 1 right gripper)
+    - Indices 16-31: Joint velocities (same layout)
+    - Indices 32-47: Joint efforts (same layout)
+
+    **Model state format (16-dim):**
+    We extract: [left_arm_pos(7), left_gripper_effort(1), right_arm_pos(7), right_gripper_effort(1)]
+    - Indices 0-6: Left arm positions (from input[0:7])
+    - Index 7: Left gripper effort (from input[39])
+    - Indices 8-14: Right arm positions (from input[8:15])
+    - Index 15: Right gripper effort (from input[47])
+
+    This matches the data format in convert_teleavatar_data_to_lerobot.py
     """
     model_type: _model.ModelType
 
     def __call__(self, data: dict) -> dict:
-        # Parse images to uint8 (H,W,C) since LeRobot automatically
-        # stores as float32 (C,H,W), gets skipped for policy inference.
-        # For teleavatar, we have 3 color cameras with different resolutions.
+        # Parse images to uint8 (H,W,C) format
+        # LeRobot stores as float32 (C,H,W) during training, but runtime sends uint8 (H,W,C)
         left_color = _parse_image(data["observation/images/left_color"])
         right_color = _parse_image(data["observation/images/right_color"])
         head_color = _parse_image(data["observation/images/head_camera"])
@@ -54,12 +63,14 @@ class TeleavatarInputs(transforms.DataTransformFn):
             import cv2
             head_color = cv2.resize(head_color, (848, 480))
 
+        # Extract 16-dim state from 48-dim observation
+        # Input layout: [positions(0-15), velocities(16-31), efforts(32-47)]
         state_16d = np.concatenate([
-            data["observation/state"][0:7],   # Left arm joint positions (7 values)
-            data["observation/state"][39:40],  # Left gripper effort (1 value)
-            data["observation/state"][8:15],  # Right arm joint positions (7 values)
-            data["observation/state"][47:48],  # Right gripper effort (1 value)
-        ], axis=0)  # Concatenate along the feature dimension
+            data["observation/state"][0:7],    # Left arm positions (indices 0-6)
+            data["observation/state"][39:40],  # Left gripper effort (index 39 = 32+7)
+            data["observation/state"][8:15],   # Right arm positions (indices 8-14)
+            data["observation/state"][47:48],  # Right gripper effort (index 47 = 32+15)
+        ], axis=0)
 
         # Create inputs dict. Do not change the keys in the dict below.
         # Pi0 models support three image inputs: one third-person view and two wrist views.
@@ -78,25 +89,20 @@ class TeleavatarInputs(transforms.DataTransformFn):
             },
         }
 
-        # Extract the specific 16 actions for training from the full 62-dim actions.
-        # Actions are only available during training.
+        # Extract 16-dim actions from 48-dim during training
+        # Actions are only available during training, not during inference
         if "action" in data:
-            # Extract the 16 actions we want to train on:
-            # - Left arm joint positions (joints 1-7): indices 0-6
-            # - Right arm joint positions (joints 1-7): indices 8-14
-            # - Left gripper effort: index 39
-            # - Right gripper effort: index 47
-            # Extract the 16 actions we want from the full action array.
             # data["action"] has shape [action_horizon, 48]
+            # Layout: [positions(0-15), velocities(16-31), efforts(32-47)]
             action_data = data["action"]
 
-            # Extract specific indices for each timestep
+            # Extract the same 16 dimensions we use for state
             selected_actions = np.concatenate([
-                action_data[:, 0:7],   # Left arm joint positions (7 values)
-                action_data[:, 39:40],  # Left gripper effort (1 value)
-                action_data[:, 8:15],  # Right arm joint positions (7 values)
-                action_data[:, 47:48],  # Right gripper effort (1 value)
-            ], axis=1)  # Concatenate along action dimension, not time dimension
+                action_data[:, 0:7],    # Left arm positions
+                action_data[:, 39:40],  # Left gripper effort (index 39 = 32+7)
+                action_data[:, 8:15],   # Right arm positions
+                action_data[:, 47:48],  # Right gripper effort (index 47 = 32+15)
+            ], axis=1)  # Concatenate along action dimension
 
             inputs["actions"] = selected_actions
 
