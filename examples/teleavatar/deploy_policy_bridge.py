@@ -32,11 +32,12 @@ from openpi_client import msgpack_numpy
 class TeleavatarPolicyBridge(Node):
     """Bridge between ROS2 and OpenPI policy server."""
 
-    def __init__(self, server_url: str, control_frequency: float = 30.0):
+    def __init__(self, server_url: str, control_frequency: float = 30.0, open_loop_horizon: int = 8):
         super().__init__('teleavatar_policy_bridge')
 
         self.server_url = server_url
         self.control_frequency = control_frequency
+        self.open_loop_horizon = open_loop_horizon  # 执行多少个动作后重新推理
         self.logger = self.get_logger()
 
         # CV Bridge for image conversion
@@ -52,11 +53,16 @@ class TeleavatarPolicyBridge(Node):
         self.packer = msgpack_numpy.Packer()
         self.connected = False
 
+        # Action chunking state
+        self.cached_action_chunk = None  # 缓存的动作序列
+        self.actions_from_chunk_completed = 0  # 已执行的动作数量
+
         # Statistics
         self.stats = {
             'inference_count': 0,
             'total_latency_ms': 0.0,
-            'last_inference_time': None
+            'last_inference_time': None,
+            'action_chunk_usage': 0  # 动作序列利用率统计
         }
 
         # Setup ROS2 subscribers
@@ -71,7 +77,14 @@ class TeleavatarPolicyBridge(Node):
         # Start control loop timer
         self.timer = self.create_timer(1.0 / control_frequency, self.control_loop)
 
-        self.logger.info(f"Policy bridge initialized (control frequency: {control_frequency} Hz)")
+        # Log configuration
+        chunking_info = f"open-loop horizon: {self.open_loop_horizon}" if self.open_loop_horizon > 1 else "disabled (every timestep inference)"
+        self.logger.info(f"Policy bridge initialized:")
+        self.logger.info(f"  - Control frequency: {control_frequency} Hz")
+        self.logger.info(f"  - Action chunking: {chunking_info}")
+        if self.open_loop_horizon > 1:
+            expected_inference_freq = control_frequency / self.open_loop_horizon
+            self.logger.info(f"  - Expected inference frequency: {expected_inference_freq:.1f} Hz")
 
     def _setup_subscribers(self):
         """Setup ROS2 subscribers for images and joint states."""
@@ -190,40 +203,33 @@ class TeleavatarPolicyBridge(Node):
                 self.logger.warning(f"Missing joint states: {missing}")
                 return None
 
-            # Build 48-dimensional state vector that matches the dataset format
-            # Layout: positions[16] + velocities[16] + efforts[16]
-            state_48d = np.zeros(48, dtype=np.float32)
+            # Build 16-dimensional state vector with only joint positions
+            # Layout: [left_arm_positions(7) + left_gripper_position(1) + 
+            #          right_arm_positions(7) + right_gripper_position(1)]
+            state_16d = np.zeros(16, dtype=np.float32)
 
-            # Extract left arm (7 joints)
+            # Extract left arm positions (7 joints)
             left_arm = self.latest_joint_states['left_arm']
-            state_48d[0:7] = self._extract_joint_data(left_arm, 7, 'position')
-            state_48d[16:23] = self._extract_joint_data(left_arm, 7, 'velocity')
-            state_48d[32:39] = self._extract_joint_data(left_arm, 7, 'effort')
+            state_16d[0:7] = self._extract_joint_data(left_arm, 7, 'position')
 
-            # Extract left gripper (1 joint)
+            # Extract left gripper position (1 joint)
             left_gripper = self.latest_joint_states['left_gripper']
-            state_48d[7] = self._extract_joint_data(left_gripper, 1, 'position')[0]
-            state_48d[23] = self._extract_joint_data(left_gripper, 1, 'velocity')[0]
-            state_48d[39] = self._extract_joint_data(left_gripper, 1, 'effort')[0]
+            state_16d[7] = self._extract_joint_data(left_gripper, 1, 'position')[0]
 
-            # Extract right arm (7 joints)
+            # Extract right arm positions (7 joints)
             right_arm = self.latest_joint_states['right_arm']
-            state_48d[8:15] = self._extract_joint_data(right_arm, 7, 'position')
-            state_48d[24:31] = self._extract_joint_data(right_arm, 7, 'velocity')
-            state_48d[40:47] = self._extract_joint_data(right_arm, 7, 'effort')
+            state_16d[8:15] = self._extract_joint_data(right_arm, 7, 'position')
 
-            # Extract right gripper (1 joint)
+            # Extract right gripper position (1 joint)
             right_gripper = self.latest_joint_states['right_gripper']
-            state_48d[15] = self._extract_joint_data(right_gripper, 1, 'position')[0]
-            state_48d[31] = self._extract_joint_data(right_gripper, 1, 'velocity')[0]
-            state_48d[47] = self._extract_joint_data(right_gripper, 1, 'effort')[0]
+            state_16d[15] = self._extract_joint_data(right_gripper, 1, 'position')[0]
 
             # Build observation dict with flat keys (using slashes, not nested dicts)
             obs = {
                 'observation/images/left_color': self.latest_images['left_color'].copy(),
                 'observation/images/right_color': self.latest_images['right_color'].copy(),
                 'observation/images/head_camera': self.latest_images['head_camera'].copy(),
-                'observation/state': state_48d,
+                'observation/state': state_16d,
             }
 
             return obs
@@ -242,52 +248,73 @@ class TeleavatarPolicyBridge(Node):
             return result
 
     def control_loop(self):
-        """Main control loop: get observation, query policy, publish actions."""
+        """Main control loop with action chunking: get observation, query policy if needed, publish actions."""
         if not self.connected:
             self.logger.warning("Not connected to policy server")
             return
 
         try:
-            # Build observation
-            start_time = time.time()
-            obs = self._build_observation()
+            # Check if we need to get a new action chunk
+            need_new_chunk = (
+                self.cached_action_chunk is None or 
+                self.actions_from_chunk_completed >= self.open_loop_horizon
+            )
+            
+            if need_new_chunk:
+                # Build observation and query policy server
+                start_time = time.time()
+                obs = self._build_observation()
 
-            if obs is None:
-                return
+                if obs is None:
+                    return
 
-            # Send observation to policy server
-            self.ws.send(self.packer.pack(obs))
+                # Send observation to policy server
+                self.ws.send(self.packer.pack(obs))
 
-            # Receive action from policy server
-            action_response = msgpack_numpy.unpackb(self.ws.recv())
+                # Receive action from policy server
+                action_response = msgpack_numpy.unpackb(self.ws.recv())
 
-            # Calculate latency
-            latency_ms = (time.time() - start_time) * 1000
+                # Calculate latency
+                latency_ms = (time.time() - start_time) * 1000
 
-            # Extract actions (shape: [action_horizon, 16])
-            actions = action_response['actions']
-            server_timing = action_response.get('server_timing', {})
+                # Cache the new action chunk (shape: [action_horizon, 16])
+                self.cached_action_chunk = action_response['actions']
+                assert self.cached_action_chunk.shape == (50, 16)
+                self.actions_from_chunk_completed = 0  # Reset counter
+                server_timing = action_response.get('server_timing', {})
 
-            # Use first action in the sequence (action_horizon dimension)
-            current_action = actions[0]  # Shape: (16,)
+                # Update inference statistics
+                self.stats['inference_count'] += 1
+                self.stats['total_latency_ms'] += latency_ms
+                self.stats['last_inference_time'] = time.time()
 
-            # Publish actions to ROS
-            self._publish_actions(current_action)
+                # Log statistics every 10 inferences (reduced frequency due to chunking)
+                if self.stats['inference_count'] % 10 == 0:
+                    avg_latency = self.stats['total_latency_ms'] / self.stats['inference_count']
+                    infer_ms = server_timing.get('infer_ms', 0)
+                    chunk_usage = self.stats['action_chunk_usage'] / max(1, self.stats['inference_count'])
+                    inference_freq = self.stats['inference_count'] / max(1, time.time() - (self.stats['last_inference_time'] or time.time()))
+                    
+                    self.logger.info(
+                        f"Stats - Inferences: {self.stats['inference_count']}, "
+                        f"Avg latency: {avg_latency:.1f}ms, "
+                        f"Server infer: {infer_ms:.1f}ms, "
+                        f"Chunk usage: {chunk_usage:.1f}, "
+                        f"Inference freq: {inference_freq:.2f}Hz"
+                    )
 
-            # Update statistics
-            self.stats['inference_count'] += 1
-            self.stats['total_latency_ms'] += latency_ms
-            self.stats['last_inference_time'] = time.time()
-
-            # Log statistics every 30 inferences
-            if self.stats['inference_count'] % 30 == 0:
-                avg_latency = self.stats['total_latency_ms'] / self.stats['inference_count']
-                infer_ms = server_timing.get('infer_ms', 0)
-                self.logger.info(
-                    f"Stats - Count: {self.stats['inference_count']}, "
-                    f"Avg latency: {avg_latency:.1f}ms, "
-                    f"Server infer: {infer_ms:.1f}ms"
-                )
+            # Use current action from cached chunk
+            if self.cached_action_chunk is not None:
+                # Ensure we don't exceed chunk length
+                action_idx = min(self.actions_from_chunk_completed, len(self.cached_action_chunk) - 1)
+                current_action = self.cached_action_chunk[action_idx]  # Shape: (16,)
+                
+                # Publish actions to ROS
+                self._publish_actions(current_action)
+                
+                # Update action chunk usage
+                self.actions_from_chunk_completed += 1
+                self.stats['action_chunk_usage'] += 1
 
         except Exception as e:
             self.logger.error(f"Error in control loop: {e}")
@@ -357,6 +384,17 @@ def main():
         default=30.0,
         help='Control loop frequency in Hz'
     )
+    parser.add_argument(
+        '--open-loop-horizon',
+        type=int,
+        default=8,
+        help='Number of actions to execute before querying policy server again'
+    )
+    parser.add_argument(
+        '--disable-chunking',
+        action='store_true',
+        help='Disable action chunking (query policy every timestep)'
+    )
 
     args = parser.parse_args()
 
@@ -364,10 +402,14 @@ def main():
     rclpy.init()
 
     try:
+        # Set open_loop_horizon based on chunking setting
+        args.open_loop_horizon
+        
         # Create bridge node
         bridge = TeleavatarPolicyBridge(
             server_url=args.server_url,
-            control_frequency=args.control_frequency
+            control_frequency=args.control_frequency,
+            open_loop_horizon=open_loop_horizon
         )
 
         # Spin
