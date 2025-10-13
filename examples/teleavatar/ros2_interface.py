@@ -32,9 +32,6 @@ class TeleavatarROS2Interface(Node):
         self.image_timestamps: Dict[str, float] = {}
         self.joint_timestamps: Dict[str, float] = {}
 
-        # Storage for previous action positions (for velocity calculation)
-        self.prev_action_positions: Optional[np.ndarray] = None
-
         # Setup subscribers and publishers
         self._setup_subscribers()
         self._setup_publishers()
@@ -94,8 +91,8 @@ class TeleavatarROS2Interface(Node):
     def _setup_publishers(self):
         """Setup ROS2 publishers for action commands."""
         self.action_publishers = {
-            'left_arm': self.create_publisher(JointState, '/left_arm/joint_cmd', 10),
-            'right_arm': self.create_publisher(JointState, '/right_arm/joint_cmd', 10),
+            'left_arm': self.create_publisher(JointState, '/left_arm/model_joint_cmd', 10),
+            'right_arm': self.create_publisher(JointState, '/right_arm/model_joint_cmd', 10),
             'left_gripper': self.create_publisher(JointState, '/left_gripper/joint_cmd', 10),
             'right_gripper': self.create_publisher(JointState, '/right_gripper/joint_cmd', 10),
         }
@@ -231,16 +228,16 @@ class TeleavatarROS2Interface(Node):
             result[:len(data)] = data
             return result
 
-    def publish_action(self, actions: np.ndarray, control_dt: float = 1.0/15.0):
+    def publish_action(self, actions: np.ndarray):
         """Publish 16-dimensional action to ROS topics.
 
-        Arms are in velocity control mode, so we convert position commands to velocities
-        by computing: velocity = (position_new - position_old) / dt
+        Publishes position commands to model_joint_cmd topics for arms.
+        A separate control node will subscribe to these and compute velocities
+        using PD control + feedforward.
 
         Args:
             actions: 16-dim array [left_arm_pos(7), left_gripper_effort(1),
                                    right_arm_pos(7), right_gripper_effort(1)]
-            control_dt: Time interval between actions in seconds (default: 1/15 = 0.0667s)
         """
         if actions.shape != (16,):
             self.logger.error(f"Expected 16-dim action, got shape {actions.shape}")
@@ -248,39 +245,10 @@ class TeleavatarROS2Interface(Node):
 
         timestamp = self.get_clock().now().to_msg()
 
-        # Extract position commands for arms
-        left_arm_pos = actions[0:7]
-        right_arm_pos = actions[8:15]
-
-        # Calculate velocities: v = (pos_new - pos_old) / dt
-        if self.prev_action_positions is None:
-            # First action: set velocity to 0
-            left_arm_vel = np.zeros(7, dtype=np.float32)
-            right_arm_vel = np.zeros(7, dtype=np.float32)
-            self.logger.info("First action: velocity set to 0")
-        else:
-            # v = delta_position / delta_time
-            left_arm_vel = (left_arm_pos - self.prev_action_positions[0:7]) / control_dt
-            right_arm_vel = (right_arm_pos - self.prev_action_positions[8:15]) / control_dt
-
-            # Debug: log position changes and velocities
-            left_pos_diff = np.abs(left_arm_pos - self.prev_action_positions[0:7])
-            right_pos_diff = np.abs(right_arm_pos - self.prev_action_positions[8:15])
-            self.logger.info(
-                f"Position diff - Left: max={left_pos_diff.max():.6f}, Right: max={right_pos_diff.max():.6f}"
-            )
-            self.logger.info(
-                f"Velocity - Left: max={np.abs(left_arm_vel).max():.6f}, Right: max={np.abs(right_arm_vel).max():.6f}"
-            )
-
-        # Store current positions for next iteration
-        self.prev_action_positions = actions.copy()
-
-        # Left arm (position + velocity)
+        # Left arm (position command)
         left_arm_msg = JointState()
         left_arm_msg.header.stamp = timestamp
-        left_arm_msg.position = left_arm_pos.tolist()
-        left_arm_msg.velocity = left_arm_vel.tolist()
+        left_arm_msg.position = actions[0:7].tolist()
         self.action_publishers['left_arm'].publish(left_arm_msg)
 
         # Left gripper (effort)
@@ -289,11 +257,10 @@ class TeleavatarROS2Interface(Node):
         left_gripper_msg.effort = [float(actions[7])]
         self.action_publishers['left_gripper'].publish(left_gripper_msg)
 
-        # Right arm (position + velocity)
+        # Right arm (position command)
         right_arm_msg = JointState()
         right_arm_msg.header.stamp = timestamp
-        right_arm_msg.position = right_arm_pos.tolist()
-        right_arm_msg.velocity = right_arm_vel.tolist()
+        right_arm_msg.position = actions[8:15].tolist()
         self.action_publishers['right_arm'].publish(right_arm_msg)
 
         # Right gripper (effort)
