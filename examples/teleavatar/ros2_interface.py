@@ -32,6 +32,9 @@ class TeleavatarROS2Interface(Node):
         self.image_timestamps: Dict[str, float] = {}
         self.joint_timestamps: Dict[str, float] = {}
 
+        self.left_joint_names = ['l_joint1', 'l_joint2', 'l_joint3', 'l_joint4', 'l_joint5', 'l_joint6', 'l_joint7']
+        self.right_joint_names = ['r_joint1', 'r_joint2', 'r_joint3', 'r_joint4', 'r_joint5', 'r_joint6', 'r_joint7']
+
         # Setup subscribers and publishers
         self._setup_subscribers()
         self._setup_publishers()
@@ -249,6 +252,7 @@ class TeleavatarROS2Interface(Node):
         left_arm_msg = JointState()
         left_arm_msg.header.stamp = timestamp
         left_arm_msg.position = actions[0:7].tolist()
+        left_arm_msg.name = self.left_joint_names
         self.action_publishers['left_arm'].publish(left_arm_msg)
 
         # Left gripper (effort)
@@ -261,6 +265,7 @@ class TeleavatarROS2Interface(Node):
         right_arm_msg = JointState()
         right_arm_msg.header.stamp = timestamp
         right_arm_msg.position = actions[8:15].tolist()
+        right_arm_msg.name = self.right_joint_names
         self.action_publishers['right_arm'].publish(right_arm_msg)
 
         # Right gripper (effort)

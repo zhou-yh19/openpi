@@ -38,10 +38,17 @@ class ArmVelocityController(Node):
         # State storage - Left arm
         self.left_des_q = None
         self.left_state_q = None
+        self.left_cmd_last_time = None  # Last time we received model_joint_cmd
+        self.left_joint_names = ['l_joint1', 'l_joint2', 'l_joint3', 'l_joint4', 'l_joint5', 'l_joint6', 'l_joint7']
 
         # State storage - Right arm
         self.right_des_q = None
         self.right_state_q = None
+        self.right_cmd_last_time = None  # Last time we received model_joint_cmd
+        self.right_joint_names = ['r_joint1', 'r_joint2', 'r_joint3', 'r_joint4', 'r_joint5', 'r_joint6', 'r_joint7']
+
+        # Timeout for model commands (seconds)
+        self.cmd_timeout = 0.5  # If no command for 0.5s, stop publishing
 
         # Subscribers for model commands (from policy)
         self.create_subscription(
@@ -92,11 +99,13 @@ class ArmVelocityController(Node):
         """Receive desired position from policy for left arm."""
         if len(msg.position) >= self.num_joints:
             self.left_des_q = np.array(msg.position[:self.num_joints])
+            self.left_cmd_last_time = self.get_clock().now()
 
     def right_model_cmd_callback(self, msg: JointState):
         """Receive desired position from policy for right arm."""
         if len(msg.position) >= self.num_joints:
             self.right_des_q = np.array(msg.position[:self.num_joints])
+            self.right_cmd_last_time = self.get_clock().now()
 
     def left_state_callback(self, msg: JointState):
         """Receive actual joint states for left arm."""
@@ -125,10 +134,23 @@ class ArmVelocityController(Node):
 
     def control_loop(self):
         """Main control loop running at 100 Hz."""
-        timestamp = self.get_clock().now().to_msg()
+        now = self.get_clock().now()
+        timestamp = now.to_msg()
 
         # Control left arm
         if self.left_des_q is not None and self.left_state_q is not None:
+            # Check if command is still fresh
+            if self.left_cmd_last_time is not None:
+                time_since_cmd = (now - self.left_cmd_last_time).nanoseconds / 1e9
+                if time_since_cmd > self.cmd_timeout:
+                    # Command timeout - stop publishing
+                    self.get_logger().warn(
+                        f'Left arm model_joint_cmd timeout ({time_since_cmd:.2f}s), stopping control',
+                        throttle_duration_sec=2.0
+                    )
+                    self.left_des_q = None
+                    return
+
             left_vel = self.get_target_v(
                 self.left_des_q,
                 self.left_state_q,
@@ -138,12 +160,25 @@ class ArmVelocityController(Node):
             # Publish left arm command (position + velocity)
             left_msg = JointState()
             left_msg.header.stamp = timestamp
+            left_msg.name = self.left_joint_names
             left_msg.position = self.left_des_q.tolist()
             left_msg.velocity = left_vel.tolist()
             self.left_cmd_pub.publish(left_msg)
 
         # Control right arm
         if self.right_des_q is not None and self.right_state_q is not None:
+            # Check if command is still fresh
+            if self.right_cmd_last_time is not None:
+                time_since_cmd = (now - self.right_cmd_last_time).nanoseconds / 1e9
+                if time_since_cmd > self.cmd_timeout:
+                    # Command timeout - stop publishing
+                    self.get_logger().warn(
+                        f'Right arm model_joint_cmd timeout ({time_since_cmd:.2f}s), stopping control',
+                        throttle_duration_sec=2.0
+                    )
+                    self.right_des_q = None
+                    return
+
             right_vel = self.get_target_v(
                 self.right_des_q,
                 self.right_state_q,
@@ -153,6 +188,7 @@ class ArmVelocityController(Node):
             # Publish right arm command (position + velocity)
             right_msg = JointState()
             right_msg.header.stamp = timestamp
+            right_msg.name = self.right_joint_names
             right_msg.position = self.right_des_q.tolist()
             right_msg.velocity = right_vel.tolist()
             self.right_cmd_pub.publish(right_msg)
