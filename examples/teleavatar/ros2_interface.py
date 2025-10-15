@@ -34,6 +34,8 @@ class TeleavatarROS2Interface(Node):
 
         self.left_joint_names = ['l_joint1', 'l_joint2', 'l_joint3', 'l_joint4', 'l_joint5', 'l_joint6', 'l_joint7']
         self.right_joint_names = ['r_joint1', 'r_joint2', 'r_joint3', 'r_joint4', 'r_joint5', 'r_joint6', 'r_joint7']
+        self.left_gripper_names = ['l_joint8']
+        self.right_gripper_names = ['r_joint8']
 
         # Setup subscribers and publishers
         self._setup_subscribers()
@@ -251,25 +253,39 @@ class TeleavatarROS2Interface(Node):
         # Left arm (position command)
         left_arm_msg = JointState()
         left_arm_msg.header.stamp = timestamp
-        left_arm_msg.position = actions[0:7].tolist()
+        left_arm_msg.header.frame_id = 'left_arm'
         left_arm_msg.name = self.left_joint_names
+        left_arm_msg.position = actions[0:7].tolist()
+        left_arm_msg.velocity = np.zeros(7).tolist()
+        left_arm_msg.effort = np.zeros(7).tolist()
         self.action_publishers['left_arm'].publish(left_arm_msg)
 
         # Left gripper (effort)
         left_gripper_msg = JointState()
         left_gripper_msg.header.stamp = timestamp
+        left_gripper_msg.header.frame_id = 'left_gripper'
+        left_gripper_msg.name = self.left_gripper_names
+        left_gripper_msg.position = [0.0]
+        left_gripper_msg.velocity = [0.0]
         left_gripper_msg.effort = [float(actions[7])]
         self.action_publishers['left_gripper'].publish(left_gripper_msg)
 
         # Right arm (position command)
         right_arm_msg = JointState()
         right_arm_msg.header.stamp = timestamp
-        right_arm_msg.position = actions[8:15].tolist()
+        right_arm_msg.header.frame_id = 'right_arm'
         right_arm_msg.name = self.right_joint_names
+        right_arm_msg.position = actions[8:15].tolist()
+        right_arm_msg.velocity = np.zeros(7).tolist()
+        right_arm_msg.effort = np.zeros(7).tolist()
         self.action_publishers['right_arm'].publish(right_arm_msg)
 
         # Right gripper (effort)
         right_gripper_msg = JointState()
         right_gripper_msg.header.stamp = timestamp
+        right_gripper_msg.header.frame_id = 'right_gripper'
+        right_gripper_msg.name = self.right_gripper_names
+        right_gripper_msg.position = [0.0]
+        right_gripper_msg.velocity = [0.0]
         right_gripper_msg.effort = [float(actions[15])]
         self.action_publishers['right_gripper'].publish(right_gripper_msg)
