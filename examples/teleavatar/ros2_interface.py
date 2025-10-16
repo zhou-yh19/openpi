@@ -94,8 +94,8 @@ class TeleavatarROS2Interface(Node):
     def _setup_publishers(self):
         """Setup ROS2 publishers for action commands."""
         self.action_publishers = {
-            'left_arm': self.create_publisher(JointState, '/left_arm/model_joint_cmd', 10),
-            'right_arm': self.create_publisher(JointState, '/right_arm/model_joint_cmd', 10),
+            'left_arm': self.create_publisher(JointState, '/left/ik_robstride_joint_cmd', 10),
+            'right_arm': self.create_publisher(JointState, '/right/ik_robstride_joint_cmd', 10),
             'left_gripper': self.create_publisher(JointState, '/left_gripper/joint_cmd', 10),
             'right_gripper': self.create_publisher(JointState, '/right_gripper/joint_cmd', 10),
         }
