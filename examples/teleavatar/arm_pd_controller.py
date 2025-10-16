@@ -161,8 +161,10 @@ class ArmVelocityController(Node):
             left_msg = JointState()
             left_msg.header.stamp = timestamp
             left_msg.name = self.left_joint_names
+            left_msg.header.frame_id = 'left_arm'
             left_msg.position = self.left_des_q.tolist()
             left_msg.velocity = left_vel.tolist()
+            left_msg.effort = np.zeros(self.num_joints).tolist()
             self.left_cmd_pub.publish(left_msg)
 
         # Control right arm
@@ -188,9 +190,11 @@ class ArmVelocityController(Node):
             # Publish right arm command (position + velocity)
             right_msg = JointState()
             right_msg.header.stamp = timestamp
+            right_msg.header.frame_id = 'right_arm'
             right_msg.name = self.right_joint_names
             right_msg.position = self.right_des_q.tolist()
             right_msg.velocity = right_vel.tolist()
+            right_msg.effort = np.zeros(self.num_joints).tolist()
             self.right_cmd_pub.publish(right_msg)
 
 
