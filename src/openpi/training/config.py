@@ -848,7 +848,7 @@ _CONFIGS = [
             action_dim=32  # Keep 32 to match pi0_base pretrained weights
         ),
         data=LeRobotTeleavatarDataConfig(
-            repo_id="lerobot/left_dataset",  # Your local dataset name
+            repo_id="left_dataset",  # Your local dataset name
             base_config=DataConfig(
                 prompt_from_task=False,  # No prompts in teleavatar dataset
                 action_sequence_keys=("action",)  # Use 'action' not 'actions'
@@ -857,7 +857,7 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
         batch_size=16,
-        num_train_steps=30_000,
+        num_train_steps=10,
         # The freeze filter defines which parameters should be frozen during training.
         # We have a convenience function in the model config that returns the default freeze filter
         # for the given model config for LoRA finetuning. Just make sure it matches the model config
