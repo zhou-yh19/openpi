@@ -23,7 +23,8 @@ from openpi_client import websocket_client_policy as _websocket_client_policy
 from openpi_client.runtime import runtime as _runtime
 from openpi_client.runtime.agents import policy_agent as _policy_agent
 import tyro
-
+import sys
+sys.path.append('/home/caslx/Robotics/openpi')
 from examples.teleavatar import env as _env
 
 
