@@ -21,6 +21,7 @@ import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
 import openpi.policies.teleavatar_policy as teleavatar_policy
+import openpi.policies.teleavatar_policy_endeffector as teleavatar_policy_endeffector
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -393,6 +394,63 @@ class LeRobotTeleavatarDataConfig(DataConfigFactory):
         if self.use_delta_joint_actions:
             # Apply delta left arm joints (first 7 dims), leave left gripper (8th dim) absolute
             # Apply delta right arm joints (dims 9-15), leave right gripper (16th dim) absolute
+            delta_action_mask = _transforms.make_bool_mask(7, -1, 7, -1)
+            data_transforms = data_transforms.push(
+                inputs=[_transforms.DeltaActions(delta_action_mask)],
+                outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+            )
+
+        # Model transforms
+        model_transforms = ModelTransformFactory()(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotTeleavatarEndEffectorDataConfig(DataConfigFactory):
+    """
+    Config for training on Teleavatar dual-arm robot dataset using end-effector representation.
+
+    This config handles the extended state with end-effector poses (position + quaternion)
+    and 3 camera feeds (left_color, right_color, head_camera).
+    
+    State format: [left_ee_pose(7), left_gripper_effort(1), right_ee_pose(7), right_gripper_effort(1)]
+    """
+    use_delta_ee_actions: bool = True
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        # Repack transform to match dataset keys to inference keys
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "observation/images/left_color": "observation.images.left_color",
+                        "observation/images/right_color": "observation.images.right_color",
+                        "observation/images/head_camera": "observation.images.head_camera",
+                        "observation/state": "observation.state",
+                        "action": "action",
+                    }
+                )
+            ]
+        )
+
+        # Data transforms for teleavatar end-effector policy
+        data_transforms = _transforms.Group(
+            inputs=[teleavatar_policy_endeffector.TeleavatarEndEffectorInputs(model_type=model_config.model_type)],
+            outputs=[teleavatar_policy_endeffector.TeleavatarEndEffectorOutputs()],
+        )
+
+        # Apply delta actions if requested (for end-effector pose, not gripper efforts)
+        # Inputs are 16 dimensions: 7 left ee pose, 1 left gripper, 7 right ee pose, 1 right gripper
+        if self.use_delta_ee_actions:
+            # Apply delta to left ee pose (first 7 dims), leave left gripper (8th dim) absolute
+            # Apply delta to right ee pose (dims 9-15), leave right gripper (16th dim) absolute
             delta_action_mask = _transforms.make_bool_mask(7, -1, 7, -1)
             data_transforms = data_transforms.push(
                 inputs=[_transforms.DeltaActions(delta_action_mask)],
@@ -845,19 +903,20 @@ _CONFIGS = [
         model=pi0_config.Pi0Config(
             paligemma_variant="gemma_2b_lora",
             action_expert_variant="gemma_300m_lora",
-            action_dim=32  # Keep 32 to match pi0_base pretrained weights
+            action_dim=32,  # Keep 32 to match pi0_base pretrained weights
+            action_horizon=10
         ),
-        data=LeRobotTeleavatarDataConfig(
+        data=LeRobotTeleavatarEndEffectorDataConfig(
             repo_id="left_dataset",  # Your local dataset name
             base_config=DataConfig(
                 prompt_from_task=False,  # No prompts in teleavatar dataset
                 action_sequence_keys=("action",)  # Use 'action' not 'actions'
             ),
-            use_delta_joint_actions=False,
+            use_delta_ee_actions=False,  # Use end-effector representation
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
         batch_size=16,
-        num_train_steps=10,
+        num_train_steps=20000,
         # The freeze filter defines which parameters should be frozen during training.
         # We have a convenience function in the model config that returns the default freeze filter
         # for the given model config for LoRA finetuning. Just make sure it matches the model config

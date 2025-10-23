@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """
-Main entry point for running Teleavatar robot with OpenPI policy.
+Main entry point for running Teleavatar robot with OpenPI policy using end-effector representation.
 
-This script uses the standard openpi_client.runtime framework for clean,
-modular robot control with remote policy inference.
+This script uses end-effector poses (position + quaternion) instead of joint angles.
 
 Usage:
     # Start policy server first (in another terminal):
     uv run scripts/serve_policy.py policy:checkpoint \
-        --policy.config=pi05_teleavatar \
-        --policy.dir=checkpoints/pi05_teleavatar/my_experiment/20000
+        --policy.config=pi0_teleavatar_low_mem_finetune \
+        --policy.dir=pi0_teleavatar_low_mem_finetune/pi0_lora_with_joint_positions_and_gripper_efforts/29999
 
     # Then run this script:
-    python examples/teleavatar/main.py --remote-host 192.168.1.100 --prompt "pick up the red cube"
+    python examples/teleavatar/main_endeffector.py --remote-host 192.168.1.100 --prompt "pick up the red cube"
 """
 
 import dataclasses
@@ -25,12 +24,12 @@ from openpi_client.runtime.agents import policy_agent as _policy_agent
 import tyro
 import sys
 sys.path.append('/home/caslx/Robotics/openpi')
-from examples.teleavatar import env as _env
+from examples.teleavatar import env_endeffector as _env
 
 
 @dataclasses.dataclass
 class Args:
-    """Command-line arguments for Teleavatar deployment."""
+    """Command-line arguments for Teleavatar deployment with end-effector control."""
 
     # Remote policy server settings
     remote_host: str = "0.0.0.0"
@@ -41,7 +40,7 @@ class Args:
 
     # Control settings
     control_frequency: float = 20.0
-    """Control loop frequency in Hz (default: 15 Hz, matching DROID)"""
+    """Control loop frequency in Hz (default: 20 Hz)"""
 
     action_horizon: int = 10
     """Number of actions in each chunk returned by policy (default: 10)"""
@@ -62,10 +61,10 @@ class Args:
 
 
 def main(args: Args) -> None:
-    """Main function to run Teleavatar with policy inference."""
+    """Main function to run Teleavatar with end-effector policy inference."""
 
     logging.info("=" * 60)
-    logging.info("Teleavatar OpenPI Deployment")
+    logging.info("Teleavatar OpenPI Deployment (End-Effector Control)")
     logging.info("=" * 60)
     logging.info(f"Policy server: ws://{args.remote_host}:{args.remote_port}")
     logging.info(f"Control frequency: {args.control_frequency} Hz")
@@ -91,9 +90,8 @@ def main(args: Args) -> None:
     metadata = ws_client_policy.get_server_metadata()
     logging.info(f"Connected to policy server. Metadata: {metadata}")
 
-    # Create Teleavatar environment
-    # Note: Images are kept at original resolution to match training data
-    environment = _env.TeleavatarEnvironment(
+    # Create Teleavatar environment with end-effector representation
+    environment = _env.TeleavatarEndEffectorEnvironment(
         prompt=args.prompt,
     )
 
@@ -116,7 +114,7 @@ def main(args: Args) -> None:
     )
 
     # Run!
-    logging.info("\nStarting robot control loop...")
+    logging.info("\nStarting robot control loop with end-effector representation...")
     logging.info("Press Ctrl+C to stop\n")
 
     try:
@@ -139,3 +137,4 @@ if __name__ == "__main__":
     # Parse arguments and run
     args: Args = tyro.cli(Args)
     main(args)
+
