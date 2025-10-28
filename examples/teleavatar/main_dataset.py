@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """
-Main entry point for running Teleavatar robot with OpenPI policy.
+Main entry point for running Teleavatar policy inference with LeRobot dataset playback.
 
-This script uses the standard openpi_client.runtime framework for clean,
-modular robot control with remote policy inference.
+This script uses dataset_interface to read observations from a LeRobot dataset
+instead of from live ROS2 topics, enabling offline inference testing.
 
 Usage:
     # Start policy server first (in another terminal):
     uv run scripts/serve_policy.py policy:checkpoint \
-        --policy.config=pi05_teleavatar \
-        --policy.dir=checkpoints/pi05_teleavatar/my_experiment/20000
+        --policy.config=pi0_teleavatar_low_mem_finetune \
+        --policy.dir=pi0_teleavatar_low_mem_finetune_new_data/pi0_lora_with_joint_positions_and_gripper_efforts_new_data/29999
 
     # Then run this script:
-    python examples/teleavatar/main.py --remote-host 127.0.0.1
+    python examples/teleavatar/main_dataset.py \
+        --remote-host 127.0.0.1 \
+        --dataset-path datasets \
+        --episode-index 0 \
+        --prompt "Pick up the toy and drop it in the basket on the left"
 """
 
 import dataclasses
@@ -25,23 +29,33 @@ from openpi_client.runtime.agents import policy_agent as _policy_agent
 import tyro
 import sys
 sys.path.append('/home/caslx/Robotics/openpi')
-from examples.teleavatar import env as _env
+from examples.teleavatar import env_dataset as _env_dataset
 
 
 @dataclasses.dataclass
 class Args:
-    """Command-line arguments for Teleavatar deployment."""
+    """Command-line arguments for Teleavatar dataset inference."""
 
     # Remote policy server settings
-    remote_host: str = "0.0.0.0"
-    """IP address of the policy server (e.g., '192.168.1.100')"""
+    remote_host: str = "127.0.0.1"
+    """IP address of the policy server"""
 
     remote_port: int = 8000
     """Port of the policy server"""
 
+    # Dataset settings
+    dataset_path: str = "/home/caslx/Robotics/openpi/datasets"
+    """Path to the LeRobot format dataset directory"""
+
+    episode_index: int = 0
+    """Episode index to play back (default: 0)"""
+
+    start_frame: int = 0
+    """Starting frame within the episode (default: 0)"""
+
     # Control settings
     control_frequency: float = 20.0
-    """Control loop frequency in Hz (default: 15 Hz, matching DROID)"""
+    """Control loop frequency in Hz (should match dataset FPS for realistic timing)"""
 
     action_horizon: int = 10
     """Number of actions in each chunk returned by policy (default: 10)"""
@@ -53,25 +67,34 @@ class Args:
     prompt: str = "Pick up the toy and drop it in the basket on the left"
     """Language instruction for the robot"""
 
+    # ROS2 action publishing
+    enable_ros2_publishing: bool = True
+    """If True, publish predicted actions to ROS2 topics for real robot control (default: False)"""
+
     # Episode settings
     num_episodes: int = 1
-    """Number of episodes to run"""
+    """Number of episodes to run (for dataset mode, this is number of episode replays)"""
 
-    max_episode_steps: int = 600
-    """Maximum steps per episode (0 = unlimited)"""
+    max_episode_steps: int = 0
+    """Maximum steps per episode (0 = unlimited, will use dataset episode length)"""
 
 
 def main(args: Args) -> None:
-    """Main function to run Teleavatar with policy inference."""
+    """Main function to run Teleavatar dataset inference."""
 
     logging.info("=" * 60)
-    logging.info("Teleavatar OpenPI Deployment")
+    logging.info("Teleavatar OpenPI Dataset Inference")
     logging.info("=" * 60)
     logging.info(f"Policy server: ws://{args.remote_host}:{args.remote_port}")
+    logging.info(f"Dataset path: {args.dataset_path}")
+    logging.info(f"Episode: {args.episode_index}, starting at frame {args.start_frame}")
     logging.info(f"Control frequency: {args.control_frequency} Hz")
     logging.info(f"Action horizon: {args.action_horizon} steps")
     logging.info(f"Open-loop horizon: {args.open_loop_horizon} steps")
     logging.info(f"Prompt: '{args.prompt}'")
+    logging.info(f"ROS2 action publishing: {'ENABLED' if args.enable_ros2_publishing else 'DISABLED'}")
+    if args.enable_ros2_publishing:
+        logging.info("  ⚠ Actions will be published to ROS2 topics - robot will move!")
     logging.info("=" * 60)
 
     # Validate settings
@@ -91,11 +114,18 @@ def main(args: Args) -> None:
     metadata = ws_client_policy.get_server_metadata()
     logging.info(f"Connected to policy server. Metadata: {metadata}")
 
-    # Create Teleavatar environment
-    # Note: Images are kept at original resolution to match training data
-    environment = _env.TeleavatarEnvironment(
+    # Create Teleavatar dataset environment
+    environment = _env_dataset.TeleavatarDatasetEnvironment(
         prompt=args.prompt,
+        dataset_path=args.dataset_path,
+        episode_index=args.episode_index,
+        start_frame=args.start_frame,
+        enable_ros2_publishing=args.enable_ros2_publishing,
     )
+
+    # Log episode info
+    episode_info = environment.get_episode_info()
+    logging.info(f"Episode info: {episode_info}")
 
     # Create policy agent with action chunking
     agent = _policy_agent.PolicyAgent(
@@ -112,17 +142,17 @@ def main(args: Args) -> None:
         subscribers=[],  # Could add video recording, logging, etc.
         max_hz=args.control_frequency,
         num_episodes=args.num_episodes,
-        max_episode_steps=args.max_episode_steps,
+        max_episode_steps=args.max_episode_steps if args.max_episode_steps > 0 else episode_info['episode_length'],
     )
 
     # Run!
-    logging.info("\nStarting robot control loop...")
+    logging.info("\nStarting dataset inference...")
     logging.info("Press Ctrl+C to stop\n")
 
     try:
         runtime.run()
     except KeyboardInterrupt:
-        logging.info("\n\nStopping robot (Ctrl+C pressed)...")
+        logging.info("\n\nStopping inference (Ctrl+C pressed)...")
     finally:
         logging.info("Shutdown complete.")
 
@@ -139,3 +169,4 @@ if __name__ == "__main__":
     # Parse arguments and run
     args: Args = tyro.cli(Args)
     main(args)
+
