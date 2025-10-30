@@ -34,6 +34,7 @@ class ArmVelocityController(Node):
         # PD gains (feedback)
         self.kp_err_left = np.array([7.0, 7.0, 10.0, 10.0, 10.0, 8.0, 8.0])
         self.kp_err_right = np.array([7.0, 7.0, 10.0, 10.0, 10.0, 8.0, 8.0])
+        self.joint_vel_limit = np.array([15.0, 15.0, 20.0, 20.0, 44.0, 33.0, 33.0])
 
         # State storage - Left arm
         self.left_des_q = None
@@ -130,7 +131,8 @@ class ArmVelocityController(Node):
             target_velocity
         """
         vel_fb = kp_err * (des_q - state_q)
-        return vel_fb
+        vel_fb_clipped = np.clip(vel_fb, -0.3 * self.joint_vel_limit, 0.3 * self.joint_vel_limit)
+        return vel_fb_clipped
 
     def control_loop(self):
         """Main control loop running at 100 Hz."""
