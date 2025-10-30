@@ -898,6 +898,27 @@ _CONFIGS = [
         num_train_steps=20_000,
     ),
     TrainConfig(
+        name="pi0_teleavatar",
+        # Here is an example of loading a pi0 model for LoRA fine-tuning.
+        model=pi0_config.Pi0Config(
+            action_dim=32,  # Keep 32 to match pi0_base pretrained weights
+            action_horizon=10
+        ),
+        data=LeRobotTeleavatarDataConfig(
+            repo_id="lerobot/right_dataset",  # Your local dataset name
+            base_config=DataConfig(
+                prompt_from_task=False,  # No prompts in teleavatar dataset
+                action_sequence_keys=("action",)  # Use 'action' not 'actions'
+            ),
+            use_delta_joint_actions=False,  # Use end-effector representation
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=16,
+        num_train_steps=20000,
+
+        
+    ),
+    TrainConfig(
         name="pi0_teleavatar_low_mem_finetune",
         # Here is an example of loading a pi0 model for LoRA fine-tuning.
         model=pi0_config.Pi0Config(
