@@ -13,7 +13,7 @@ def make_teleavatar_example() -> dict:
         "observation/state": np.random.rand(48),
         "observation/images/left_color": np.random.randint(256, size=(480, 848, 3), dtype=np.uint8),
         "observation/images/right_color": np.random.randint(256, size=(480, 848, 3), dtype=np.uint8),
-        "observation/images/head_camera": np.random.randint(256, size=(1080, 1920, 3), dtype=np.uint8),
+        "observation/images/head_camera": np.random.randint(256, size=(480, 848, 3), dtype=np.uint8),
         "actions": np.random.rand(48),
         "prompt": "pick a cube and place it on another cube",
     }
@@ -78,9 +78,9 @@ class TeleavatarInputs(transforms.DataTransformFn):
         inputs = {
             "state": state_16d,
             "image": {
-                "base_0_rgb": left_color,       # Left stereo camera as base view
-                "left_wrist_0_rgb": right_color,  # Right stereo camera as left wrist
-                "right_wrist_0_rgb": head_color,  # Head camera as right wrist
+                "base_0_rgb": head_color,       
+                "left_wrist_0_rgb": left_color,  
+                "right_wrist_0_rgb": right_color,  
             },
             "image_mask": {
                 "base_0_rgb": np.True_,

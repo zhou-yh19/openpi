@@ -875,17 +875,17 @@ _CONFIGS = [
             pi05=True,
             action_horizon=10,
             discrete_state_input=False,
-            action_dim=16  # Teleavatar uses 16-dim actions
+            action_dim=32  # Teleavatar uses 16-dim actions
         ),
         data=LeRobotTeleavatarDataConfig(
-            repo_id="lerobot/left_dataset",  # Your local dataset name
+            repo_id="placemouse_datasets",  # Your local dataset name
             base_config=DataConfig(
                 prompt_from_task=False,  # No prompts in teleavatar dataset
                 action_sequence_keys=("action",)  # Use 'action' not 'actions'
             ),
-            use_delta_joint_actions=True,
+            use_delta_joint_actions=False,
         ),
-        batch_size=4,
+        batch_size=16,
         lr_schedule=_optimizer.CosineDecaySchedule(
             warmup_steps=5_000,
             peak_lr=5e-5,
@@ -905,7 +905,7 @@ _CONFIGS = [
             action_horizon=10
         ),
         data=LeRobotTeleavatarDataConfig(
-            repo_id="lerobot/right_dataset",  # Your local dataset name
+            repo_id="placemouse_datasets",  # Your local dataset name
             base_config=DataConfig(
                 prompt_from_task=False,  # No prompts in teleavatar dataset
                 action_sequence_keys=("action",)  # Use 'action' not 'actions'
