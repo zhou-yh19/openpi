@@ -375,7 +375,7 @@ class LeRobotTeleavatarDataConfig(DataConfigFactory):
                     {
                         "observation/images/left_color": "observation.images.left_color",
                         "observation/images/right_color": "observation.images.right_color",
-                        "observation/images/head_camera": "observation.images.head_camera",  # Map head_camera correctly
+                        "observation/images/head_camera": "observation.images.chest_camera",  # use chest_camera data
                         "observation/state": "observation.state",
                         "action": "action",  # Keep action as action
                     }
@@ -905,7 +905,7 @@ _CONFIGS = [
             action_horizon=10
         ),
         data=LeRobotTeleavatarDataConfig(
-            repo_id="placemouse_datasets",  # Your local dataset name
+            repo_id="/home/caslx/Robotics/openpi/placemouse_datasets",  # Your local dataset name
             base_config=DataConfig(
                 prompt_from_task=False,  # No prompts in teleavatar dataset
                 action_sequence_keys=("action",)  # Use 'action' not 'actions'

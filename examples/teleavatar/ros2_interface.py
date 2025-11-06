@@ -60,7 +60,7 @@ class TeleavatarROS2Interface(Node):
         )
         self.create_subscription(
             Image,
-            '/head/color/image_raw',
+            '/head/color/image_raw',   # use chest_camera image
             lambda msg: self._image_callback(msg, 'head_camera'),
             10
         )
