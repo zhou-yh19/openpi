@@ -40,12 +40,10 @@ class TeleavatarInputs(transforms.DataTransformFn):
     - Indices 16-31: Joint velocities (same layout)
     - Indices 32-47: Joint efforts (same layout)
 
-    **Model state format (16-dim):**
-    We extract: [left_arm_pos(7), left_gripper_effort(1), right_arm_pos(7), right_gripper_effort(1)]
+    **Model state format (14-dim):**
+    We extract: [left_arm_pos(7), right_arm_pos(7)]
     - Indices 0-6: Left arm positions (from input[0:7])
-    - Index 7: Left gripper effort (from input[39])
-    - Indices 8-14: Right arm positions (from input[8:15])
-    - Index 15: Right gripper effort (from input[47])
+    - Indices 7-13: Right arm positions (from input[8:15])
 
     This matches the data format in convert_teleavatar_data_to_lerobot.py
     """
@@ -63,20 +61,18 @@ class TeleavatarInputs(transforms.DataTransformFn):
             import cv2
             head_color = cv2.resize(head_color, (848, 480))
 
-        # Extract 16-dim state from 48-dim observation
+        # Extract 14-dim state from 48-dim observation
         # Input layout: [positions(0-15), velocities(16-31), efforts(32-47)]
-        state_16d = np.concatenate([
+        state_14d = np.concatenate([
             data["observation/state"][0:7],    # Left arm positions (indices 0-6)
-            data["observation/state"][39:40],  # Left gripper effort (index 39 = 32+7)
             data["observation/state"][8:15],   # Right arm positions (indices 8-14)
-            data["observation/state"][47:48],  # Right gripper effort (index 47 = 32+15)
         ], axis=0)
 
         # Create inputs dict. Do not change the keys in the dict below.
         # Pi0 models support three image inputs: one third-person view and two wrist views.
         # Map teleavatar cameras to the expected model inputs.
         inputs = {
-            "state": state_16d,
+            "state": state_14d,
             "image": {
                 "base_0_rgb": head_color,       
                 "left_wrist_0_rgb": left_color,  
@@ -96,7 +92,8 @@ class TeleavatarInputs(transforms.DataTransformFn):
             # Layout: [positions(0-15), velocities(16-31), efforts(32-47)]
             action_data = data["action"]
 
-            # Extract the same 16 dimensions we use for state
+            # Extract 16 dimensions: joint positions (14) + gripper efforts (2)
+            # Note: State only uses 14 dims (joint positions), but actions include gripper efforts
             selected_actions = np.concatenate([
                 action_data[:, 0:7],    # Left arm positions
                 action_data[:, 39:40],  # Left gripper effort (index 39 = 32+7)

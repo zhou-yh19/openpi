@@ -390,7 +390,7 @@ class LeRobotTeleavatarDataConfig(DataConfigFactory):
         )
 
         # Apply delta actions if requested (for joint positions/velocities, not gripper efforts)
-        # Inputs are 16 dimensions: 7 left arm joints, 1 left gripper, 7 right arm joints, 1 right gripper
+        # Actions are 16 dimensions: 7 left arm joints, 1 left gripper, 7 right arm joints, 1 right gripper
         if self.use_delta_joint_actions:
             # Apply delta left arm joints (first 7 dims), leave left gripper (8th dim) absolute
             # Apply delta right arm joints (dims 9-15), leave right gripper (16th dim) absolute
@@ -905,7 +905,7 @@ _CONFIGS = [
             action_horizon=10
         ),
         data=LeRobotTeleavatarDataConfig(
-            repo_id="/home/caslx/Robotics/openpi/placemouse_datasets",  # Your local dataset name
+            repo_id="placebluetoy_datasets1106-2",  # Your local dataset name
             base_config=DataConfig(
                 prompt_from_task=False,  # No prompts in teleavatar dataset
                 action_sequence_keys=("action",)  # Use 'action' not 'actions'
