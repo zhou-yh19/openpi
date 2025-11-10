@@ -364,7 +364,7 @@ class LeRobotTeleavatarDataConfig(DataConfigFactory):
     This config handles the 48-dimensional state (joint positions, velocities, efforts)
     and 3 camera feeds (left_color, right_color, head_color).
     """
-    use_delta_joint_actions: bool = True
+    use_delta_joint_actions: bool = False
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
@@ -421,7 +421,7 @@ class LeRobotTeleavatarEndEffectorDataConfig(DataConfigFactory):
     
     State format: [left_ee_pose(7), left_gripper_effort(1), right_ee_pose(7), right_gripper_effort(1)]
     """
-    use_delta_ee_actions: bool = True
+    use_delta_ee_actions: bool = False
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
@@ -432,7 +432,7 @@ class LeRobotTeleavatarEndEffectorDataConfig(DataConfigFactory):
                     {
                         "observation/images/left_color": "observation.images.left_color",
                         "observation/images/right_color": "observation.images.right_color",
-                        "observation/images/head_camera": "observation.images.head_camera",
+                        "observation/images/head_camera": "observation.images.chest_camera",
                         "observation/state": "observation.state",
                         "action": "action",
                     }
@@ -880,7 +880,7 @@ _CONFIGS = [
         data=LeRobotTeleavatarDataConfig(
             repo_id="placemouse_datasets",  # Your local dataset name
             base_config=DataConfig(
-                prompt_from_task=False,  # No prompts in teleavatar dataset
+                prompt_from_task=True,  # No prompts in teleavatar dataset
                 action_sequence_keys=("action",)  # Use 'action' not 'actions'
             ),
             use_delta_joint_actions=False,
@@ -905,12 +905,33 @@ _CONFIGS = [
             action_horizon=10
         ),
         data=LeRobotTeleavatarDataConfig(
-            repo_id="placebluetoy_datasets1106-2",  # Your local dataset name
+            repo_id="inference",  # Your local dataset name
             base_config=DataConfig(
-                prompt_from_task=False,  # No prompts in teleavatar dataset
+                prompt_from_task=True,  # No prompts in teleavatar dataset
                 action_sequence_keys=("action",)  # Use 'action' not 'actions'
             ),
             use_delta_joint_actions=False,  # Use end-effector representation
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=16,
+        num_train_steps=20000,
+
+        
+    ),
+    TrainConfig(
+        name="pi0_teleavatar_endeffector",
+        # Here is an example of loading a pi0 model for LoRA fine-tuning.
+        model=pi0_config.Pi0Config(
+            action_dim=32,  # Keep 32 to match pi0_base pretrained weights
+            action_horizon=10
+        ),
+        data=LeRobotTeleavatarEndEffectorDataConfig(
+            repo_id="inference",  # Your local dataset name
+            base_config=DataConfig(
+                prompt_from_task=True,  # No prompts in teleavatar dataset
+                action_sequence_keys=("action",)  # Use 'action' not 'actions'
+            ),
+            use_delta_ee_actions=False,  # Use end-effector representation
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
         batch_size=16,

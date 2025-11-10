@@ -13,7 +13,7 @@ def make_teleavatar_endeffector_example() -> dict:
         "observation/state": np.random.rand(62),  # 62-dim state with end-effector poses
         "observation/images/left_color": np.random.randint(256, size=(480, 848, 3), dtype=np.uint8),
         "observation/images/right_color": np.random.randint(256, size=(480, 848, 3), dtype=np.uint8),
-        "observation/images/head_camera": np.random.randint(256, size=(1080, 1920, 3), dtype=np.uint8),
+        "observation/images/head_camera": np.random.randint(256, size=(480, 848, 3), dtype=np.uint8),
         "actions": np.random.rand(62),  # 62-dim actions with end-effector poses
         "prompt": "pick a cube and place it on another cube",
     }
@@ -71,22 +71,20 @@ class TeleavatarEndEffectorInputs(transforms.DataTransformFn):
 
         # Extract 16-dim state from extended observation
         # Using end-effector representation instead of joint angles
-        state_16d = np.concatenate([
+        state_14d = np.concatenate([
             data["observation/state"][48:55],  # Left arm end-effector (x,y,z,qx,qy,qz,qw)
-            data["observation/state"][39:40],  # Left gripper effort (index 39 = 32+7)
             data["observation/state"][55:62],  # Right arm end-effector (x,y,z,qx,qy,qz,qw)
-            data["observation/state"][47:48],  # Right gripper effort (index 47 = 32+15)
         ], axis=0)
 
         # Create inputs dict. Do not change the keys in the dict below.
         # Pi0 models support three image inputs: one third-person view and two wrist views.
         # Map teleavatar cameras to the expected model inputs.
         inputs = {
-            "state": state_16d,
+            "state": state_14d,
             "image": {
-                "base_0_rgb": left_color,       # Left stereo camera as base view
-                "left_wrist_0_rgb": right_color,  # Right stereo camera as left wrist
-                "right_wrist_0_rgb": head_color,  # Head camera as right wrist
+                "base_0_rgb": head_color,       
+                "left_wrist_0_rgb": left_color,  
+                "right_wrist_0_rgb": right_color,  
             },
             "image_mask": {
                 "base_0_rgb": np.True_,

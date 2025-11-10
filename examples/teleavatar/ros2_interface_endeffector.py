@@ -14,8 +14,7 @@ import rclpy
 from cv_bridge import CvBridge
 from rclpy.node import Node
 from sensor_msgs.msg import Image, JointState
-from geometry_msgs.msg import PoseStamped
-
+from geometry_msgs.msg import Pose
 
 class TeleavatarEndEffectorROS2Interface(Node):
     """Thread-safe ROS2 interface for Teleavatar robot with end-effector representation."""
@@ -30,7 +29,7 @@ class TeleavatarEndEffectorROS2Interface(Node):
         # Storage for latest sensor data
         self.latest_images: Dict[str, np.ndarray] = {}
         self.latest_joint_states: Dict[str, JointState] = {}
-        self.latest_ee_poses: Dict[str, PoseStamped] = {}
+        self.latest_ee_poses: Dict[str, Pose] = {}
         self.image_timestamps: Dict[str, float] = {}
         self.joint_timestamps: Dict[str, float] = {}
         self.ee_pose_timestamps: Dict[str, float] = {}
@@ -58,7 +57,7 @@ class TeleavatarEndEffectorROS2Interface(Node):
         )
         self.create_subscription(
             Image,
-            '/xr_video_topic/image_raw',
+            '/head/color/image_raw',
             lambda msg: self._image_callback(msg, 'head_camera'),
             10
         )
@@ -93,13 +92,13 @@ class TeleavatarEndEffectorROS2Interface(Node):
         # Subscribe to current end-effector poses (input to the model)
         # TODO: Update these topic names to match your actual ROS2 topics
         self.create_subscription(
-            PoseStamped,
+            Pose,
             '/left_arm/current_ee_pose',
             lambda msg: self._ee_pose_callback(msg, 'left_ee'),
             10
         )
         self.create_subscription(
-            PoseStamped,
+            Pose,
             '/right_arm/current_ee_pose',
             lambda msg: self._ee_pose_callback(msg, 'right_ee'),
             10
@@ -112,8 +111,8 @@ class TeleavatarEndEffectorROS2Interface(Node):
         # Publish TARGET end-effector poses (output from the model)
         # TODO: Update these topic names to match your actual ROS2 topics
         self.action_publishers = {
-            'left_ee': self.create_publisher(PoseStamped, '/left_arm/target_ee_pose', 10),
-            'right_ee': self.create_publisher(PoseStamped, '/right_arm/target_ee_pose', 10),
+            'left_ee': self.create_publisher(Pose, '/left_arm/target_ee_pose', 10),
+            'right_ee': self.create_publisher(Pose, '/right_arm/target_ee_pose', 10),
             'left_gripper': self.create_publisher(JointState, '/left_gripper/joint_cmd', 10),
             'right_gripper': self.create_publisher(JointState, '/right_gripper/joint_cmd', 10),
         }
@@ -135,7 +134,7 @@ class TeleavatarEndEffectorROS2Interface(Node):
             self.latest_joint_states[joint_group] = msg
             self.joint_timestamps[joint_group] = time.time()
 
-    def _ee_pose_callback(self, msg: PoseStamped, ee_name: str):
+    def _ee_pose_callback(self, msg: Pose, ee_name: str):
         """Callback for end-effector pose messages."""
         with self.lock:
             self.latest_ee_poses[ee_name] = msg
@@ -242,22 +241,22 @@ class TeleavatarEndEffectorROS2Interface(Node):
             right_ee_pose = self.latest_ee_poses['right_ee']
 
             # Left EE pose: (x, y, z, qx, qy, qz, qw) - indices 48-54
-            state_62d[48] = left_ee_pose.pose.position.x
-            state_62d[49] = left_ee_pose.pose.position.y
-            state_62d[50] = left_ee_pose.pose.position.z
-            state_62d[51] = left_ee_pose.pose.orientation.x
-            state_62d[52] = left_ee_pose.pose.orientation.y
-            state_62d[53] = left_ee_pose.pose.orientation.z
-            state_62d[54] = left_ee_pose.pose.orientation.w
+            state_62d[48] = left_ee_pose.position.x
+            state_62d[49] = left_ee_pose.position.y
+            state_62d[50] = left_ee_pose.position.z
+            state_62d[51] = left_ee_pose.orientation.x
+            state_62d[52] = left_ee_pose.orientation.y
+            state_62d[53] = left_ee_pose.orientation.z
+            state_62d[54] = left_ee_pose.orientation.w
 
             # Right EE pose: (x, y, z, qx, qy, qz, qw) - indices 55-61
-            state_62d[55] = right_ee_pose.pose.position.x
-            state_62d[56] = right_ee_pose.pose.position.y
-            state_62d[57] = right_ee_pose.pose.position.z
-            state_62d[58] = right_ee_pose.pose.orientation.x
-            state_62d[59] = right_ee_pose.pose.orientation.y
-            state_62d[60] = right_ee_pose.pose.orientation.z
-            state_62d[61] = right_ee_pose.pose.orientation.w
+            state_62d[55] = right_ee_pose.position.x
+            state_62d[56] = right_ee_pose.position.y
+            state_62d[57] = right_ee_pose.position.z
+            state_62d[58] = right_ee_pose.orientation.x
+            state_62d[59] = right_ee_pose.orientation.y
+            state_62d[60] = right_ee_pose.orientation.z
+            state_62d[61] = right_ee_pose.orientation.w
 
             return {
                 'images': {
@@ -295,16 +294,14 @@ class TeleavatarEndEffectorROS2Interface(Node):
         timestamp = self.get_clock().now().to_msg()
 
         # Left end-effector TARGET pose (predicted by the model)
-        left_ee_msg = PoseStamped()
-        left_ee_msg.header.stamp = timestamp
-        left_ee_msg.header.frame_id = 'base'  # TODO: Update frame_id as needed
-        left_ee_msg.pose.position.x = float(actions[0])
-        left_ee_msg.pose.position.y = float(actions[1])
-        left_ee_msg.pose.position.z = float(actions[2])
-        left_ee_msg.pose.orientation.x = float(actions[3])
-        left_ee_msg.pose.orientation.y = float(actions[4])
-        left_ee_msg.pose.orientation.z = float(actions[5])
-        left_ee_msg.pose.orientation.w = float(actions[6])
+        left_ee_msg = Pose()
+        left_ee_msg.position.x = float(actions[0])
+        left_ee_msg.position.y = float(actions[1])
+        left_ee_msg.position.z = float(actions[2])
+        left_ee_msg.orientation.x = float(actions[3])
+        left_ee_msg.orientation.y = float(actions[4])
+        left_ee_msg.orientation.z = float(actions[5])
+        left_ee_msg.orientation.w = float(actions[6])
         self.action_publishers['left_ee'].publish(left_ee_msg)
 
         # Left gripper (effort)
@@ -318,16 +315,14 @@ class TeleavatarEndEffectorROS2Interface(Node):
         self.action_publishers['left_gripper'].publish(left_gripper_msg)
 
         # Right end-effector TARGET pose (predicted by the model)
-        right_ee_msg = PoseStamped()
-        right_ee_msg.header.stamp = timestamp
-        right_ee_msg.header.frame_id = 'base'  # TODO: Update frame_id as needed
-        right_ee_msg.pose.position.x = float(actions[8])
-        right_ee_msg.pose.position.y = float(actions[9])
-        right_ee_msg.pose.position.z = float(actions[10])
-        right_ee_msg.pose.orientation.x = float(actions[11])
-        right_ee_msg.pose.orientation.y = float(actions[12])
-        right_ee_msg.pose.orientation.z = float(actions[13])
-        right_ee_msg.pose.orientation.w = float(actions[14])
+        right_ee_msg = Pose()
+        right_ee_msg.position.x = float(actions[8])
+        right_ee_msg.position.y = float(actions[9])
+        right_ee_msg.position.z = float(actions[10])
+        right_ee_msg.orientation.x = float(actions[11])
+        right_ee_msg.orientation.y = float(actions[12])
+        right_ee_msg.orientation.z = float(actions[13])
+        right_ee_msg.orientation.w = float(actions[14])
         self.action_publishers['right_ee'].publish(right_ee_msg)
 
         # Right gripper (effort)

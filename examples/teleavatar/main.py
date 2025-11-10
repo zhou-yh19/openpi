@@ -50,7 +50,7 @@ class Args:
     """Number of actions to execute before querying policy again (default: 8)"""
 
     # Task settings
-    prompt: str = "Pick up the toy and drop it in the basket on the left"
+    prompt: str = "Pick up the mouse and drop it in the box on the left"
     """Language instruction for the robot"""
 
     # Episode settings
