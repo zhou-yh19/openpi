@@ -43,10 +43,10 @@ class Args:
     control_frequency: float = 20.0
     """Control loop frequency in Hz (default: 15 Hz, matching DROID)"""
 
-    action_horizon: int = 10
+    action_horizon: int = 50
     """Number of actions in each chunk returned by policy (default: 10)"""
 
-    open_loop_horizon: int = 8
+    open_loop_horizon: int = 40
     """Number of actions to execute before querying policy again (default: 8)"""
 
     # Task settings
