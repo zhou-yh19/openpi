@@ -111,8 +111,8 @@ class TeleavatarEndEffectorROS2Interface(Node):
         # Publish TARGET end-effector poses (output from the model)
         # TODO: Update these topic names to match your actual ROS2 topics
         self.action_publishers = {
-            'left_ee': self.create_publisher(Pose, '/left_arm/target_ee_pose', 10),
-            'right_ee': self.create_publisher(Pose, '/right_arm/target_ee_pose', 10),
+            'left_ee': self.create_publisher(Pose, '/left_target_ee_pose', 10),
+            'right_ee': self.create_publisher(Pose, '/right_target_ee_pose', 10),
             'left_gripper': self.create_publisher(JointState, '/left_gripper/joint_cmd', 10),
             'right_gripper': self.create_publisher(JointState, '/right_gripper/joint_cmd', 10),
         }
