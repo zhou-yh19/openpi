@@ -57,7 +57,7 @@ class TeleavatarEndEffectorROS2Interface(Node):
         )
         self.create_subscription(
             Image,
-            '/head/color/image_raw',
+            '/head/image_raw',
             lambda msg: self._image_callback(msg, 'head_camera'),
             10
         )

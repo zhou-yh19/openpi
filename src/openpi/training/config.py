@@ -873,7 +873,7 @@ _CONFIGS = [
         name="pi05_teleavatar",
         model=pi0_config.Pi0Config(
             pi05=True,
-            action_horizon=50,
+            action_horizon=30,
             discrete_state_input=False,
             action_dim=32  # Teleavatar uses 16-dim actions
         ),
@@ -885,7 +885,7 @@ _CONFIGS = [
             ),
             use_delta_joint_actions=False,
         ),
-        batch_size=16,
+        batch_size=64,
         lr_schedule=_optimizer.CosineDecaySchedule(
             warmup_steps=5_000,
             peak_lr=5e-5,
@@ -905,7 +905,7 @@ _CONFIGS = [
             action_horizon=50
         ),
         data=LeRobotTeleavatarDataConfig(
-            repo_id="Data/merged_multi_task",  # Your local dataset name
+            repo_id="inference",  # Your local dataset name
             base_config=DataConfig(
                 prompt_from_task=True,  #
                 action_sequence_keys=("action",)  # Use 'action' not 'actions'

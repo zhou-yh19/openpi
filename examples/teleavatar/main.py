@@ -50,14 +50,14 @@ class Args:
     """Number of actions to execute before querying policy again (default: 8)"""
 
     # Task settings
-    prompt: str = "Pick up the mouse and drop it in the box on the left"
+    prompt: str = "Pick up the cube and drop it in the box on the left"
     """Language instruction for the robot"""
 
     # Episode settings
-    num_episodes: int = 1
+    num_episodes: int = 10
     """Number of episodes to run"""
 
-    max_episode_steps: int = 600
+    max_episode_steps: int = 250
     """Maximum steps per episode (0 = unlimited)"""
 
 
