@@ -43,18 +43,18 @@ class Args:
     control_frequency: float = 20.0
     """Control loop frequency in Hz (default: 15 Hz, matching DROID)"""
 
-    action_horizon: int = 50
+    action_horizon: int = 30
     """Number of actions in each chunk returned by policy (default: 10)"""
 
-    open_loop_horizon: int = 40
+    open_loop_horizon: int = 24
     """Number of actions to execute before querying policy again (default: 8)"""
 
     # Task settings
-    prompt: str = "Pick up the cube and drop it in the box on the left"
+    prompt: str = "Stack the three blocks'"
     """Language instruction for the robot"""
 
     # Episode settings
-    num_episodes: int = 10
+    num_episodes: int = 100
     """Number of episodes to run"""
 
     max_episode_steps: int = 250

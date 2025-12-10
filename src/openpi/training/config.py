@@ -611,7 +611,7 @@ class TrainConfig:
     batch_size: int = 32
     # Number of workers to use for the data loader. Increasing this number will speed up data loading but
     # will increase memory and CPU usage.
-    num_workers: int = 2
+    num_workers: int = 32
     # Number of train steps (batches) to run.
     num_train_steps: int = 30_000
 
@@ -878,7 +878,7 @@ _CONFIGS = [
             action_dim=32  # Teleavatar uses 16-dim actions
         ),
         data=LeRobotTeleavatarDataConfig(
-            repo_id="placemouse_datasets",  # Your local dataset name
+            repo_id="inference",  # Your local dataset name
             base_config=DataConfig(
                 prompt_from_task=True,  # No prompts in teleavatar dataset
                 action_sequence_keys=("action",)  # Use 'action' not 'actions'
