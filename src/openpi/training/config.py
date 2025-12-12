@@ -866,9 +866,35 @@ _CONFIGS = [
         pytorch_weight_path="/path/to/your/pytorch_weight_path",
         num_train_steps=30_000,
     ),
-    #
+
+    
+    ##########################################
     # Fine-tuning Teleavatar configs.
-    #
+    ##########################################
+    # pi0 - placemouse_datasets - 20_000 steps
+    TrainConfig(
+        name="pi0_teleavatar",
+        # Here is an example of loading a pi0 model for LoRA fine-tuning.
+        model=pi0_config.Pi0Config(
+            action_dim=32,  # Keep 32 to match pi0_base pretrained weights
+            action_horizon=50
+        ),
+        data=LeRobotTeleavatarDataConfig(
+            repo_id="/DATA/disk0/haoran/placemouse_datasets",  # 需要更换为lerobotdataset所在的本地路径
+            base_config=DataConfig(
+                prompt_from_task=True,  #
+                action_sequence_keys=("action",)  # Use 'action' not 'actions'
+            ),
+            use_delta_joint_actions=False,  # Use end-effector representation
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        # 需要提前将模型放到指定位置
+        # cp -r /DATA/disk0/model/pi0_base /home/haoran/.cache/openpi/openpi-assets/checkpoints
+        batch_size=64,
+        num_train_steps=20_000,
+        wandb_enabled=False,
+    ),
+    # pi05 - candies - 20_000 steps
     TrainConfig(
         name="pi05_teleavatar",
         model=pi0_config.Pi0Config(
@@ -878,14 +904,13 @@ _CONFIGS = [
             action_dim=32  # Teleavatar uses 16-dim actions
         ),
         data=LeRobotTeleavatarDataConfig(
-            repo_id="inference",  # Your local dataset name
+            repo_id="/DATA/disk0/haoran/candies",  # 需要更换为lerobotdataset所在的本地路径
             base_config=DataConfig(
                 prompt_from_task=True,  # No prompts in teleavatar dataset
                 action_sequence_keys=("action",)  # Use 'action' not 'actions'
             ),
             use_delta_joint_actions=False,
         ),
-        batch_size=64,
         lr_schedule=_optimizer.CosineDecaySchedule(
             warmup_steps=5_000,
             peak_lr=5e-5,
@@ -895,29 +920,16 @@ _CONFIGS = [
         optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
         ema_decay=0.999,
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        num_train_steps=20_000,
-    ),
-    TrainConfig(
-        name="pi0_teleavatar",
-        # Here is an example of loading a pi0 model for LoRA fine-tuning.
-        model=pi0_config.Pi0Config(
-            action_dim=32,  # Keep 32 to match pi0_base pretrained weights
-            action_horizon=50
-        ),
-        data=LeRobotTeleavatarDataConfig(
-            repo_id="inference",  # Your local dataset name
-            base_config=DataConfig(
-                prompt_from_task=True,  #
-                action_sequence_keys=("action",)  # Use 'action' not 'actions'
-            ),
-            use_delta_joint_actions=False,  # Use end-effector representation
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        # 需要提前将模型放到指定位置
+        # cp -r /DATA/disk0/model/pi05_base /home/haoran/.cache/openpi/openpi-assets/checkpoints
         batch_size=64,
-        num_train_steps=20000,
-
-        
+        num_train_steps=20_000,
+        wandb_enabled=False,
     ),
+    ##########################################
+    # Fine-tuning Teleavatar configs.
+    ##########################################
+
     TrainConfig(
         name="pi0_teleavatar_endeffector",
         # Here is an example of loading a pi0 model for LoRA fine-tuning.
@@ -936,8 +948,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
         batch_size=16,
         num_train_steps=20000,
-
-        
     ),
     TrainConfig(
         name="pi0_teleavatar_low_mem_finetune",

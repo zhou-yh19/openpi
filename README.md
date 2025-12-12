@@ -150,17 +150,36 @@ We provide example fine-tuning configs for [π₀](src/openpi/training/config.py
 
 Before we can run training, we need to compute the normalization statistics for the training data. Run the script below with the name of your training config:
 
+示例命令：
 ```bash
 uv run scripts/compute_norm_stats.py --config-name pi05_libero
 ```
+当前使用命令：
+```bash
+uv run scripts/compute_norm_stats.py --config-name pi0_teleavatar
+```
+```bash
+uv run scripts/compute_norm_stats.py --config-name pi05_teleavatar
+```
+生成的 norm_stats.json 会放在数据集中
 
 Now we can kick off training with the following command (the `--overwrite` flag is used to overwrite existing checkpoints if you rerun fine-tuning with the same config):
 
+示例命令：
 ```bash
 XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi05_libero --exp-name=my_experiment --overwrite
 ```
+当前使用命令：
+```bash
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi0_teleavatar --exp-name=my_experiment --overwrite
+```
+```bash
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi05_teleavatar --exp-name=my_experiment --overwrite
+```
 
 The command will log training progress to the console and save checkpoints to the `checkpoints` directory. You can also monitor training progress on the Weights & Biases dashboard. For maximally using the GPU memory, set `XLA_PYTHON_CLIENT_MEM_FRACTION=0.9` before running training -- this enables JAX to use up to 90% of the GPU memory (vs. the default of 75%).
+
+将第一步生成的norm_stats.json文件需要，先从数据集放到模型文件中，再下载模型文件。放置在模型文件中的asset/inference下。
 
 **Note:** We provide functionality for *reloading* normalization statistics for state / action normalization from pre-training. This can be beneficial if you are fine-tuning to a new task on a robot that was part of our pre-training mixture. For more details on how to reload normalization statistics, see the [norm_stats.md](docs/norm_stats.md) file.
 
