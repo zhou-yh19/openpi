@@ -48,19 +48,19 @@ class TeleavatarROS2Interface(Node):
         # Image subscribers - explicit subscriptions to avoid lambda closure issues
         self.create_subscription(
             Image,
-            '/left/color/image_raw',
+            '/left/image_raw',
             lambda msg: self._image_callback(msg, 'left_color'),
             10
         )
         self.create_subscription(
             Image,
-            '/right/color/image_raw',
+            '/right/image_raw',
             lambda msg: self._image_callback(msg, 'right_color'),
             10
         )
         self.create_subscription(
             Image,
-            '/xr_video_topic/image_raw',
+            '/head/image_raw',   # use chest_camera image
             lambda msg: self._image_callback(msg, 'head_camera'),
             10
         )
