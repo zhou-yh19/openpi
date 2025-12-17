@@ -46,6 +46,8 @@ def create_torch_dataloader(
         shuffle = True
     else:
         num_batches = len(dataset) // batch_size
+        print(f"Dataset size: {len(dataset)}")
+        print(f"num_batches: {num_batches}")
         shuffle = False
     data_loader = _data_loader.TorchDataLoader(
         dataset,

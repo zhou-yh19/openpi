@@ -117,16 +117,14 @@ We provide detailed step-by-step examples for running inference of our pre-train
 
 **Test inference without a robot**: We provide a [script](examples/simple_client/README.md) for testing inference without a robot. This script will generate a random observation and run inference with the model. See [here](examples/simple_client/README.md) for more details.
 
-
-
-
-
 ## Fine-Tuning Base Models on Your Own Data
 
 We will fine-tune the $\pi_{0.5}$ model on the [LIBERO dataset](https://libero-project.github.io/datasets) as a running example for how to fine-tune a base model on your own data. We will explain three steps:
 1. Convert your data to a LeRobot dataset (which we use for training)
 2. Defining training configs and running training
 3. Spinning up a policy server and running inference
+
+> 需要提前将`pi0_base`或`pi05_base`放入到`~/.cache/openpi/openpi-assets/checkpoints/`中，否则模型会自动从某个网络地址下载
 
 ### 1. Convert your data to a LeRobot dataset
 
@@ -161,6 +159,9 @@ uv run scripts/compute_norm_stats.py --config-name pi0_teleavatar
 ```bash
 uv run scripts/compute_norm_stats.py --config-name pi05_teleavatar
 ```
+```bash
+uv run scripts/compute_norm_stats.py --config-name pi05_teleavatar_epoch
+```
 生成的 norm_stats.json 会放在数据集中
 
 Now we can kick off training with the following command (the `--overwrite` flag is used to overwrite existing checkpoints if you rerun fine-tuning with the same config):
@@ -171,10 +172,13 @@ XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi05_libero --exp-nam
 ```
 当前使用命令：
 ```bash
-XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi0_teleavatar --exp-name=my_experiment --overwrite
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi0_teleavatar --exp-name=my_experiment
 ```
 ```bash
-XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi05_teleavatar --exp-name=my_experiment --overwrite
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi05_teleavatar --exp-name=my_experiment
+```
+```bash
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run scripts/train.py pi05_teleavatar_epoch --exp-name=my_experiment
 ```
 
 The command will log training progress to the console and save checkpoints to the `checkpoints` directory. You can also monitor training progress on the Weights & Biases dashboard. For maximally using the GPU memory, set `XLA_PYTHON_CLIENT_MEM_FRACTION=0.9` before running training -- this enables JAX to use up to 90% of the GPU memory (vs. the default of 75%).
