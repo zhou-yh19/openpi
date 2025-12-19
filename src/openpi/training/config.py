@@ -663,109 +663,32 @@ class TrainConfig:
 
 
 @dataclasses.dataclass(frozen=True)
-class TrainEpochConfig:
-    # Name of the config. Must be unique. Will be used to reference this config.
-    name: tyro.conf.Suppress[str]
-    # Project name.
-    project_name: str = "openpi"
-    # Experiment name. Will be used to name the metadata and checkpoint directories.
-    exp_name: str = tyro.MISSING
-
-    # Defines the model config. Some attributes (action_dim, action_horizon, and max_token_len) are shared by all models
-    # -- see BaseModelConfig. Specific model implementations (e.g., Pi0Config) inherit from BaseModelConfig and may
-    # define additional attributes.
-    model: _model.BaseModelConfig = dataclasses.field(default_factory=pi0_config.Pi0Config)
-
-    # A weight loader can optionally load (possibly partial) weights from disk after the model is initialized.
-    weight_loader: weight_loaders.WeightLoader = dataclasses.field(default_factory=weight_loaders.NoOpWeightLoader)
-
-    # Optional path to a PyTorch checkpoint to load weights from.
-    pytorch_weight_path: str | None = None
-
-    # Precision for PyTorch training.
-    pytorch_training_precision: Literal["bfloat16", "float32"] = "bfloat16"
-
-    lr_schedule: _optimizer.LRScheduleConfig = dataclasses.field(default_factory=_optimizer.CosineDecaySchedule)
-    optimizer: _optimizer.OptimizerConfig = dataclasses.field(default_factory=_optimizer.AdamW)
-    ema_decay: float | None = 0.99
-
-    # Specifies which weights should be frozen.
-    freeze_filter: tyro.conf.Suppress[Filter] = dataclasses.field(default_factory=nnx.Nothing)
-
-    # Determines the data to be trained on.
-    data: DataConfigFactory = dataclasses.field(default_factory=FakeDataConfig)
-
-    # Base directory for config assets (e.g., norm stats).
-    assets_base_dir: str = "./assets"
-    # Base directory for checkpoints.
-    checkpoint_base_dir: str = "./checkpoints"
-
-    # Random seed that will be used by random generators during training.
-    seed: int = 42
-    # Global batch size.
-    batch_size: int = 32
-    # Number of workers to use for the data loader. Increasing this number will speed up data loading but
-    # will increase memory and CPU usage.
-    num_workers: int = 32
+class TrainEpochConfig(TrainConfig):
     # 总共处理的epoch数量
-    num_epochs: int = 12
+    num_epochs: int = 2
     # 一个数据集会被切成多少个batch，这可以通过运行compute_norm_stats.py时打印出来
     num_batches_per_epoch: int = 1727
     # 保存一个checkpoint的epoch间隔
-    keep_model_num_epoch: int = 3
-    # Number of train steps (batches) to run.
-    @property
-    def num_train_steps(self) -> int:
-        return self.num_epochs * self.num_batches_per_epoch
+    keep_model_interval_epoch: int = 1
     
     # How often (in steps) to log training metrics.
     log_interval: int = 150
-    # How often (in steps) to save checkpoints.
-    @property
-    def save_interval(self) -> int: 
-        return self.num_batches_per_epoch
-    # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
-    def keep_period(self) -> int:
-        # 希望每隔多少个epoch保存一个checkpoint
-        return self.num_batches_per_epoch * self.keep_model_num_epoch
-
-    # If true, will overwrite the checkpoint directory if it already exists.
-    overwrite: bool = False
-    # If true, will resume training from the last checkpoint.
-    resume: bool = False
-
-    # If true, will enable wandb logging.
-    wandb_enabled: bool = True
-
-    # Used to pass metadata to the policy server.
-    policy_metadata: dict[str, Any] | None = None
-
-    # If the value is greater than 1, FSDP will be enabled and shard across number of specified devices; overall
-    # device memory will be reduced but training could potentially be slower.
-    # eg. if total device is 4 and fsdp devices is 2; then the model will shard to 2 devices and run
-    # data parallel between 2 groups of devices.
-    fsdp_devices: int = 1
     
-    @property
-    def assets_dirs(self) -> pathlib.Path:
-        """Get the assets directory for this config."""
-        return (pathlib.Path(self.assets_base_dir) / self.name).resolve()
-
-    @property
-    def checkpoint_dir(self) -> pathlib.Path:
-        """Get the checkpoint directory for this config."""
-        if not self.exp_name:
-            raise ValueError("--exp_name must be set")
-        return (pathlib.Path(self.checkpoint_base_dir) / self.name / self.exp_name).resolve()
-
-    @property
-    def trainable_filter(self) -> nnx.filterlib.Filter:
-        """Get the filter for the trainable parameters."""
-        return nnx.All(nnx.Param, nnx.Not(self.freeze_filter))
-
-    def __post_init__(self) -> None:
-        if self.resume and self.overwrite:
-            raise ValueError("Cannot resume and overwrite at the same time.")
+    def __post_init__(self):
+        # 使用 object.__setattr__ 来设置 frozen dataclass 的字段
+        # Number of train steps (batches) to run.
+        object.__setattr__(self, 
+                           'num_train_steps', 
+                           self.num_epochs * self.num_batches_per_epoch)
+        # How often (in steps) to save checkpoints. 相当于是每个epoch保存一次模型
+        object.__setattr__(self, 
+                           'save_interval', 
+                           self.num_batches_per_epoch)
+        # 希望每隔多少个epoch保存一个checkpoint，转换为每隔多少个step保存一个checkpoint
+        # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
+        object.__setattr__(self, 
+                           'keep_period', 
+                           self.num_batches_per_epoch * self.keep_model_interval_epoch)
 
 
 # Use `get_config` if you need to get a config by name in your code.
@@ -1067,13 +990,13 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         # 需要提前将模型放到指定位置
         # cp -r /DATA/disk0/model/pi05_base /home/haoran/.cache/openpi/openpi-assets/checkpoints
-        batch_size=60, # 必须是显卡数量的整数倍，如果变化需要重新运行compute_norm_stats.py
+        batch_size=72, # 必须是显卡数量的整数倍，如果变化需要重新运行compute_norm_stats.py
         # 总共处理的epoch数量
-        num_epochs=4,
+        num_epochs=3,
         # 一个数据集会被切成多少个batch，这可以通过运行compute_norm_stats.py时打印出来
-        num_batches_per_epoch = 1727,
+        num_batches_per_epoch=1535,
         # 保存一个checkpoint的epoch间隔
-        keep_model_num_epoch = 2,
+        keep_model_interval_epoch=1,
         wandb_enabled=False,
         overwrite=False,
         resume=True,
