@@ -375,8 +375,8 @@ class LeRobotTeleavatarDataConfig(DataConfigFactory):
                     {
                         "observation/images/left_color": "observation.images.left_color",
                         "observation/images/right_color": "observation.images.right_color",
-                        "observation/images/head_camera": "observation.images.head_camera", # use head_camera
-                        # "observation/images/head_camera": "observation.images.chest_camera",  # use chest_camera data
+                        # "observation/images/head_camera": "observation.images.head_camera", # use head_camera
+                        "observation/images/head_camera": "observation.images.chest_camera",  # use chest_camera data
                         "observation/state": "observation.state",
                         "action": "action",  # Keep action as action
                     }
@@ -677,18 +677,18 @@ class TrainEpochConfig(TrainConfig):
     def __post_init__(self):
         # 使用 object.__setattr__ 来设置 frozen dataclass 的字段
         # Number of train steps (batches) to run.
-        object.__setattr__(self, 
-                           'num_train_steps', 
-                           self.num_epochs * self.num_batches_per_epoch)
+        object.__setattr__(
+            self, 'num_train_steps', 
+            self.num_epochs * self.num_batches_per_epoch)
         # How often (in steps) to save checkpoints. 相当于是每个epoch保存一次模型
-        object.__setattr__(self, 
-                           'save_interval', 
-                           self.num_batches_per_epoch)
+        object.__setattr__(
+            self, 'save_interval', 
+            self.num_batches_per_epoch)
         # 希望每隔多少个epoch保存一个checkpoint，转换为每隔多少个step保存一个checkpoint
         # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
-        object.__setattr__(self, 
-                           'keep_period', 
-                           self.num_batches_per_epoch * self.keep_model_interval_epoch)
+        object.__setattr__(
+            self, 'keep_period', 
+            self.num_batches_per_epoch * self.keep_model_interval_epoch)
 
 
 # Use `get_config` if you need to get a config by name in your code.
@@ -922,7 +922,7 @@ _CONFIGS = [
         # 需要提前将模型放到指定位置
         # cp -r /DATA/disk0/model/pi0_base /home/haoran/.cache/openpi/openpi-assets/checkpoints
         batch_size=64,
-        num_train_steps=20_000,
+        num_train_steps=20_600,
         wandb_enabled=False,
         overwrite=False,
         resume=True,
