@@ -1,0 +1,43 @@
+      
+robot_name: TeleAvatar
+arms:
+  dof_num: 7
+  max_arm_len: 0.55
+  right_arm:
+    upper: [ 1.8, 0.0, 2.6, -0.25, 1.8, 1.4, 0.6 ]
+    lower: [ -1.8, -1.9, -1.3, -1.9, -1.8, -1.4, -0.6 ]
+  left_arm:
+    upper: [ 1.8, 1.9, 1.3, 1.90, 1.8, 1.4, 0.6 ]
+    lower: [ -1.8, 0.0, -2.6, 0.25, -1.8, -1.4, -0.6 ]
+  vel_limit: [ 15.0, 15.0, 20.0, 20.0, 44.0, 33.0, 33.0 ]
+  acc_limit: [ 120.0, 120.0, 60.0, 60.0, 17.0, 14.0, 14.0 ]
+
+ik_solver:
+  debug: false
+  arm_ctrl_dt: 0.01
+  ee_predict_alpha: 1.0
+  base_frame: base
+  ik_pub_topic: ik_joint_cmd
+  states_sub_topic: joint_states
+  right_arm:
+    ee_sub_topic_name: right_target_ee_pose
+    shoulder_frame_name: right_shoulder_base
+    target_ee_frame_name: right_target_ee_frame
+    curret_ee_frame_name: right_current_ee_frame
+    joint_name_prefix: r_joint
+    T_lee2pee: [ [ 0, -1, 0, 0 ], [ 1, 0, 0, 0 ], [ 0, 0, 1, 0 ], [ 0, 0, 0, 1 ] ]
+  left_arm:
+    ee_sub_topic_name: left_target_ee_pose
+    shoulder_frame_name: left_shoulder_base
+    target_ee_frame_name: left_target_ee_frame
+    curret_ee_frame_name: left_current_ee_frame
+    joint_name_prefix: l_joint
+    T_lee2pee: [ [ 0, 1, 0, 0 ], [ -1, 0, 0, 0 ], [ 0, 0, 1, 0 ], [ 0, 0, 0, 1 ] ]
+
+  vel:
+    fb_kp: [ 7, 7, 10, 10, 10, 8, 8 ]
+    ff_alpha: 0.3
+
+
+
+    
