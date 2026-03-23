@@ -83,12 +83,12 @@ class ArmVelocityController(Node):
         # Publishers for velocity commands
         self.left_cmd_pub = self.create_publisher(
             JointState,
-            '/left_arm/joint_cmd',
+            '/api/left_arm/joint_cmd',
             10
         )
         self.right_cmd_pub = self.create_publisher(
             JointState,
-            '/right_arm/joint_cmd',
+            '/api/right_arm/joint_cmd',
             10
         )
 

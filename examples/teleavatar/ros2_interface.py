@@ -98,8 +98,8 @@ class TeleavatarROS2Interface(Node):
         self.action_publishers = {
             'left_arm': self.create_publisher(JointState, '/left_arm/model_joint_cmd', 10),
             'right_arm': self.create_publisher(JointState, '/right_arm/model_joint_cmd', 10),
-            'left_gripper': self.create_publisher(JointState, '/left_gripper/joint_cmd', 10),
-            'right_gripper': self.create_publisher(JointState, '/right_gripper/joint_cmd', 10),
+            'left_gripper': self.create_publisher(JointState, '/api/left_gripper/joint_cmd', 10),
+            'right_gripper': self.create_publisher(JointState, '/api/right_gripper/joint_cmd', 10),
         }
         self.logger.info("ROS2 publishers initialized")
 

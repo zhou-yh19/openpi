@@ -1,4 +1,3 @@
-      
 robot_name: TeleAvatar
 arms:
   dof_num: 7
@@ -39,5 +38,3 @@ ik_solver:
     ff_alpha: 0.3
 
 
-
-    
