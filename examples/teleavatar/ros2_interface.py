@@ -14,6 +14,7 @@ import rclpy
 from cv_bridge import CvBridge
 from rclpy.node import Node
 from sensor_msgs.msg import Image, JointState
+from std_msgs.msg import Float32
 
 
 class TeleavatarROS2Interface(Node):
@@ -78,18 +79,6 @@ class TeleavatarROS2Interface(Node):
             lambda msg: self._joint_state_callback(msg, 'right_arm'),
             10
         )
-        self.create_subscription(
-            JointState,
-            '/left_gripper/joint_states',
-            lambda msg: self._joint_state_callback(msg, 'left_gripper'),
-            10
-        )
-        self.create_subscription(
-            JointState,
-            '/right_gripper/joint_states',
-            lambda msg: self._joint_state_callback(msg, 'right_gripper'),
-            10
-        )
 
         self.logger.info("ROS2 subscribers initialized")
 
@@ -98,9 +87,10 @@ class TeleavatarROS2Interface(Node):
         self.action_publishers = {
             'left_arm': self.create_publisher(JointState, '/left_arm/model_joint_cmd', 10),
             'right_arm': self.create_publisher(JointState, '/right_arm/model_joint_cmd', 10),
-            'left_gripper': self.create_publisher(JointState, '/api/left_gripper/joint_cmd', 10),
-            'right_gripper': self.create_publisher(JointState, '/api/right_gripper/joint_cmd', 10),
+            'left_gripper': self.create_publisher(Float32, '/api/left_gripper/cmd', 10),
+            'right_gripper': self.create_publisher(Float32, '/api/right_gripper/cmd', 10),
         }
+        self.enable_pub = self.create_publisher(Float32, '/api/fsm/enable', 10)
         self.logger.info("ROS2 publishers initialized")
 
     def _image_callback(self, msg: Image, camera_name: str):
@@ -133,7 +123,7 @@ class TeleavatarROS2Interface(Node):
             True if all data received, False if timeout
         """
         required_images = ['left_color', 'right_color', 'head_camera']
-        required_joints = ['left_arm', 'right_arm', 'left_gripper', 'right_gripper']
+        required_joints = ['left_arm', 'right_arm']
 
         start_time = time.time()
         self.logger.info("Waiting for initial sensor data...")
@@ -176,7 +166,7 @@ class TeleavatarROS2Interface(Node):
         """
         with self.lock:
             required_images = ['left_color', 'right_color', 'head_camera']
-            required_joints = ['left_arm', 'right_arm', 'left_gripper', 'right_gripper']
+            required_joints = ['left_arm', 'right_arm']
 
             # Check if we have all required data
             if not all(cam in self.latest_images for cam in required_images):
@@ -191,26 +181,26 @@ class TeleavatarROS2Interface(Node):
             # Extract joint data
             left_arm = self.latest_joint_states['left_arm']
             right_arm = self.latest_joint_states['right_arm']
-            left_gripper = self.latest_joint_states['left_gripper']
-            right_gripper = self.latest_joint_states['right_gripper']
+            # left_gripper = self.latest_joint_states['left_gripper']
+            # right_gripper = self.latest_joint_states['right_gripper']
 
             # Positions (indices 0-15)
             state_48d[0:7] = self._extract_joint_field(left_arm, 'position', 7)
-            state_48d[7] = self._extract_joint_field(left_gripper, 'position', 1)[0]
+            # state_48d[7] = self._extract_joint_field(left_gripper, 'position', 1)[0]
             state_48d[8:15] = self._extract_joint_field(right_arm, 'position', 7)
-            state_48d[15] = self._extract_joint_field(right_gripper, 'position', 1)[0]
+            # state_48d[15] = self._extract_joint_field(right_gripper, 'position', 1)[0]
 
             # Velocities (indices 16-31)
             state_48d[16:23] = self._extract_joint_field(left_arm, 'velocity', 7)
-            state_48d[23] = self._extract_joint_field(left_gripper, 'velocity', 1)[0]
+            # state_48d[23] = self._extract_joint_field(left_gripper, 'velocity', 1)[0]
             state_48d[24:31] = self._extract_joint_field(right_arm, 'velocity', 7)
-            state_48d[31] = self._extract_joint_field(right_gripper, 'velocity', 1)[0]
+            # state_48d[31] = self._extract_joint_field(right_gripper, 'velocity', 1)[0]
 
             # Efforts (indices 32-47)
             state_48d[32:39] = self._extract_joint_field(left_arm, 'effort', 7)
-            state_48d[39] = self._extract_joint_field(left_gripper, 'effort', 1)[0]
+            # state_48d[39] = self._extract_joint_field(left_gripper, 'effort', 1)[0]
             state_48d[40:47] = self._extract_joint_field(right_arm, 'effort', 7)
-            state_48d[47] = self._extract_joint_field(right_gripper, 'effort', 1)[0]
+            # state_48d[47] = self._extract_joint_field(right_gripper, 'effort', 1)[0]
 
             return {
                 'images': {
@@ -250,6 +240,11 @@ class TeleavatarROS2Interface(Node):
 
         timestamp = self.get_clock().now().to_msg()
 
+        # Enable FSM
+        enable_msg = Float32()
+        enable_msg.data = 1.0   
+        self.enable_pub.publish(enable_msg)
+
         # Left arm (position command)
         left_arm_msg = JointState()
         left_arm_msg.header.stamp = timestamp
@@ -261,13 +256,15 @@ class TeleavatarROS2Interface(Node):
         self.action_publishers['left_arm'].publish(left_arm_msg)
 
         # Left gripper (effort)
-        left_gripper_msg = JointState()
-        left_gripper_msg.header.stamp = timestamp
-        left_gripper_msg.header.frame_id = 'left_gripper'
-        left_gripper_msg.name = self.left_gripper_names
-        left_gripper_msg.position = [0.0]
-        left_gripper_msg.velocity = [0.0]
-        left_gripper_msg.effort = [float(actions[7])]
+        # left_gripper_msg = JointState()
+        # left_gripper_msg.header.stamp = timestamp
+        # left_gripper_msg.header.frame_id = 'left_gripper'
+        # left_gripper_msg.name = self.left_gripper_names
+        # left_gripper_msg.position = [0.0]
+        # left_gripper_msg.velocity = [0.0]
+        # left_gripper_msg.effort = [float(actions[7])]
+        left_gripper_msg = Float32()
+        left_gripper_msg.data = float(actions[7])
         self.action_publishers['left_gripper'].publish(left_gripper_msg)
 
         # Right arm (position command)
@@ -281,11 +278,12 @@ class TeleavatarROS2Interface(Node):
         self.action_publishers['right_arm'].publish(right_arm_msg)
 
         # Right gripper (effort)
-        right_gripper_msg = JointState()
-        right_gripper_msg.header.stamp = timestamp
-        right_gripper_msg.header.frame_id = 'right_gripper'
-        right_gripper_msg.name = self.right_gripper_names
-        right_gripper_msg.position = [0.0]
-        right_gripper_msg.velocity = [0.0]
-        right_gripper_msg.effort = [float(actions[15])]
+        # right_gripper_msg = JointState()
+        # right_gripper_msg.header.stamp = timestamp
+        # right_gripper_msg.header.frame_id = 'right_gripper'
+        # right_gripper_msg.name = self.right_gripper_names
+        # right_gripper_msg.position = [0.0]
+        # right_gripper_msg.velocity = [0.0]
+        right_gripper_msg = Float32()
+        right_gripper_msg.data = float(actions[15])
         self.action_publishers['right_gripper'].publish(right_gripper_msg)
