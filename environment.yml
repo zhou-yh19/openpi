@@ -1,4 +1,3 @@
-name: lerobot
 channels:
   - robostack-staging
   - conda-forge
@@ -816,6 +815,7 @@ dependencies:
       - typing-extensions==4.14.1
       - typing-inspect==0.9.0
       - typing-inspection==0.4.1
+      - tyro==1.0.10
       - tzdata==2025.2
       - u-msgpack-python==2.8.0
       - urllib3==2.5.0
