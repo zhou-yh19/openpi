@@ -264,7 +264,12 @@ class TeleavatarROS2Interface(Node):
         # left_gripper_msg.velocity = [0.0]
         # left_gripper_msg.effort = [float(actions[7])]
         left_gripper_msg = Float32()
-        left_gripper_msg.data = float(actions[7])
+        grip_value_left = float(actions[7])
+        if grip_value_left > 0:
+            data_left = 0.5 - grip_value_left / 7.0
+        else:  # grip_value_left <= 0
+            data_left = 0.5 - grip_value_left
+        left_gripper_msg.data = data_left
         self.action_publishers['left_gripper'].publish(left_gripper_msg)
 
         # Right arm (position command)
@@ -285,5 +290,10 @@ class TeleavatarROS2Interface(Node):
         # right_gripper_msg.position = [0.0]
         # right_gripper_msg.velocity = [0.0]
         right_gripper_msg = Float32()
-        right_gripper_msg.data = float(actions[15])
+        grip_value_right = float(actions[15])
+        if grip_value_right < 0:
+            data_right = 0.5 + grip_value_right / 7.0
+        else:  # grip_value_right >= 0
+            data_right = 0.5 + grip_value_right
+        right_gripper_msg.data = data_right
         self.action_publishers['right_gripper'].publish(right_gripper_msg)

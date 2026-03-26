@@ -25,7 +25,7 @@ class JointInterpolator(Node):
         # Enable signal
         if timer_on == True:
             self.enable_pub = self.create_publisher(Float32, '/api/fsm/enable', 10)
-            self.create_timer(0.05, self.enable_callback)
+            self.create_timer(0.02, self.enable_callback)
         self.err_publisher = self.create_publisher(
             JointState, f"/{namespace}/traj_error", 10
         )
