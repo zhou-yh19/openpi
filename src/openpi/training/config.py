@@ -375,7 +375,7 @@ class LeRobotTeleavatarDataConfig(DataConfigFactory):
                     {
                         "observation/images/left_color": "observation.images.left_color",
                         "observation/images/right_color": "observation.images.right_color",
-                        "observation/images/head_camera": "observation.images.chest_camera",  # use chest_camera data
+                        "observation/images/head_camera": "observation.images.head_camera",
                         "observation/state": "observation.state",
                         "action": "action",  # Keep action as action
                     }
@@ -432,7 +432,7 @@ class LeRobotTeleavatarEndEffectorDataConfig(DataConfigFactory):
                     {
                         "observation/images/left_color": "observation.images.left_color",
                         "observation/images/right_color": "observation.images.right_color",
-                        "observation/images/head_camera": "observation.images.chest_camera",
+                        "observation/images/head_camera": "observation.images.head_camera",
                         "observation/state": "observation.state",
                         "action": "action",
                     }
