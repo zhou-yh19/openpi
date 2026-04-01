@@ -911,7 +911,7 @@ _CONFIGS = [
         ),
         checkpoint_base_dir="/DATA/disk0/haoran/checkpoints",
         data=LeRobotTeleavatarDataConfig(
-            repo_id="/DATA/disk0/haoran/placemouse_datasets",  # 需要更换为lerobotdataset所在的本地路径
+            repo_id="/DATA/disk0/haoran/organize_desk_datasets/organize_desk",  # 需要更换为lerobotdataset所在的本地路径
             base_config=DataConfig(
                 prompt_from_task=True,  #
                 action_sequence_keys=("action",)  # Use 'action' not 'actions'
@@ -922,8 +922,8 @@ _CONFIGS = [
         # 需要提前将模型放到指定位置
         # cp -r /DATA/disk0/model/pi0_base /home/haoran/.cache/openpi/openpi-assets/checkpoints
         batch_size=64,
-        num_train_steps=20_600,
-        wandb_enabled=False,
+        num_train_steps=20_000,
+        wandb_enabled=True,
         overwrite=False,
         resume=True,
     ),
@@ -958,7 +958,7 @@ _CONFIGS = [
         # cp -r /DATA/disk0/model/pi05_base /home/haoran/.cache/openpi/openpi-assets/checkpoints
         batch_size=64, # 必须是显卡数量的整数倍，如果变化需要重新运行compute_norm_stats.py
         num_train_steps=20_000,
-        wandb_enabled=False,
+        wandb_enabled=True,
         overwrite=False,
         resume=True,
     ),
@@ -972,7 +972,7 @@ _CONFIGS = [
         ),
         checkpoint_base_dir="/DATA/disk0/haoran/checkpoints",
         data=LeRobotTeleavatarDataConfig(
-            repo_id="/DATA/disk0/haoran/candies",  # 需要更换为lerobotdataset所在的本地路径
+            repo_id="/DATA/disk0/haoran/foldshirt/ori_file_merge",  # 需要更换为lerobotdataset所在的本地路径
             base_config=DataConfig(
                 prompt_from_task=True,  # No prompts in teleavatar dataset
                 action_sequence_keys=("action",)  # Use 'action' not 'actions'
@@ -990,14 +990,14 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         # 需要提前将模型放到指定位置
         # cp -r /DATA/disk0/model/pi05_base /home/haoran/.cache/openpi/openpi-assets/checkpoints
-        batch_size=72, # 必须是显卡数量的整数倍，如果变化需要重新运行compute_norm_stats.py
+        batch_size=64, # 必须是显卡数量的整数倍，如果变化需要重新运行compute_norm_stats.py
         # 总共处理的epoch数量
-        num_epochs=3,
+        num_epochs=10,
         # 一个数据集会被切成多少个batch，这可以通过运行compute_norm_stats.py时打印出来
-        num_batches_per_epoch=1535,
+        num_batches_per_epoch=52129,
         # 保存一个checkpoint的epoch间隔
-        keep_model_interval_epoch=1,
-        wandb_enabled=False,
+        keep_model_interval_epoch=2,
+        wandb_enabled=True,
         overwrite=False,
         resume=True,
     ),

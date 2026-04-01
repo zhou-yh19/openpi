@@ -2,6 +2,7 @@ from collections.abc import Iterator, Sequence
 import logging
 import multiprocessing
 import os
+import pathlib
 import typing
 from typing import Literal, Protocol, SupportsIndex, TypeVar
 
@@ -137,9 +138,23 @@ def create_torch_dataset(
     if repo_id == "fake":
         return FakeDataset(model_config, num_samples=1024)
 
-    dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
+    # Check if repo_id is a local file path (absolute path)
+    # If it's a local path, we need to pass it as root parameter to avoid HuggingFace validation
+    root = None
+    if repo_id.startswith("/") or (os.name == "nt" and len(repo_id) > 1 and repo_id[1] == ":"):
+        # This is a local absolute path (Unix: starts with /, Windows: starts with drive letter)
+        local_path = pathlib.Path(repo_id).resolve()
+        if not local_path.exists():
+            raise ValueError(f"Local dataset path does not exist: {local_path}")
+        root = str(local_path)
+        # When root is set, LeRobotDataset will load from root instead of HuggingFace
+        # Use a simple string as repo_id to avoid validation errors
+        repo_id = "local_dataset"
+
+    dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id, root=root)
     dataset = lerobot_dataset.LeRobotDataset(
-        data_config.repo_id,
+        repo_id,
+        root=root,
         delta_timestamps={
             key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
         },

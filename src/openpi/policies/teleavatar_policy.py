@@ -10,11 +10,11 @@ from openpi.models import model as _model
 def make_teleavatar_example() -> dict:
     """Creates a random input example for the Teleavatar policy."""
     return {
-        "observation/state": np.random.rand(48),
+        "observation/state": np.random.rand(62),
         "observation/images/left_color": np.random.randint(256, size=(480, 848, 3), dtype=np.uint8),
         "observation/images/right_color": np.random.randint(256, size=(480, 848, 3), dtype=np.uint8),
         "observation/images/head_camera": np.random.randint(256, size=(480, 848, 3), dtype=np.uint8),
-        "actions": np.random.rand(48),
+        "actions": np.random.rand(62),
         "prompt": "pick a cube and place it on another cube",
     }
 
@@ -34,11 +34,12 @@ class TeleavatarInputs(transforms.DataTransformFn):
     """
     Converts inputs to the model format for Teleavatar robot.
 
-    **Input format (48-dim observation/state from LeRobot dataset):**
-    Layout: [positions(16), velocities(16), efforts(16)]
+    **Input format (62-dim observation/state from LeRobot dataset):**
+    Layout: [positions(16), velocities(16), efforts(16), ee(14)]
     - Indices 0-15: Joint positions (7 left arm, 1 left gripper, 7 right arm, 1 right gripper)
     - Indices 16-31: Joint velocities (same layout)
     - Indices 32-47: Joint efforts (same layout)
+    - Indices 48-61: End-effector positions (not used here)
 
     **Model state format (14-dim):**
     We extract: [left_arm_pos(7), right_arm_pos(7)]
@@ -61,8 +62,8 @@ class TeleavatarInputs(transforms.DataTransformFn):
             import cv2
             head_color = cv2.resize(head_color, (848, 480))
 
-        # Extract 14-dim state from 48-dim observation
-        # Input layout: [positions(0-15), velocities(16-31), efforts(32-47)]
+        # Extract 14-dim state from 62-dim observation
+        # Input layout: [positions(0-15), velocities(16-31), efforts(32-47), ee(48-61)]
         state_14d = np.concatenate([
             data["observation/state"][0:7],    # Left arm positions (indices 0-6)
             data["observation/state"][8:15],   # Right arm positions (indices 8-14)
@@ -85,11 +86,11 @@ class TeleavatarInputs(transforms.DataTransformFn):
             },
         }
 
-        # Extract 16-dim actions from 48-dim during training
+        # Extract 16-dim actions from 62-dim during training
         # Actions are only available during training, not during inference
         if "action" in data:
-            # data["action"] has shape [action_horizon, 48]
-            # Layout: [positions(0-15), velocities(16-31), efforts(32-47)]
+            # data["action"] has shape [action_horizon, 62]
+            # Layout: [positions(0-15), velocities(16-31), efforts(32-47), ee(48-61)]
             action_data = data["action"]
 
             # Extract 16 dimensions: joint positions (14) + gripper efforts (2)
